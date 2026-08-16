@@ -1,143 +1,188 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CTR Native – Nintendo Switch (devkitPro / libnx) CMake build
+#
+# Prerequisites:
+#   - devkitPro with devkitA64 and libnx installed
+#   - devkitpro-pacman packages: devkitA64, libnx, switch-tools, switch-sdl3
+#   - DEVKITPRO environment variable set (usually /opt/devkitpro)
+#
+# Usage:
+#   cmake -B build-switch -DCMAKE_TOOLCHAIN_FILE=switch/switch-toolchain.cmake \
+#         -DPLATFORM=switch
+#   cmake --build build-switch
+#
+# Output: ctr_native.nro  (copy to /switch/ctr_native/ on SD card)
+# ─────────────────────────────────────────────────────────────────────────────
+
 cmake_minimum_required(VERSION 3.20)
-project(CTR-Native C)
-include(CheckCCompilerFlag)
 
-set(CTR_NATIVE_VERSION "0.1.0-beta.7.1")
-
-if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+# ── Environment ───────────────────────────────────────────────────────────────
+if(NOT DEFINED ENV{DEVKITPRO})
     message(FATAL_ERROR
-        "CTR Native currently requires a 32-bit target. "
-        "Select Win32 for MSVC, an i686 MinGW compiler on Windows, or pass -m32 "
-        "in the initial compiler and linker flags on Linux."
-    )
+        "DEVKITPRO is not set.\n"
+        "Install devkitPro and set the environment variable, e.g.:\n"
+        "  export DEVKITPRO=/opt/devkitpro")
 endif()
 
-set(CTR_NATIVE_MSVC_FRONTEND OFF)
-if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" OR CMAKE_C_SIMULATE_ID STREQUAL "MSVC")
-    set(CTR_NATIVE_MSVC_FRONTEND ON)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-endif()
+set(DEVKITPRO $ENV{DEVKITPRO})
+set(DEVKITA64 ${DEVKITPRO}/devkitA64)
 
-set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE NEVER)
-set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY NEVER)
-set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE NEVER)
+# ── Toolchain (also handled by switch-toolchain.cmake, listed here for IDE) ──
+set(CMAKE_SYSTEM_NAME      Generic)
+set(CMAKE_SYSTEM_PROCESSOR aarch64)
+set(CMAKE_C_COMPILER   ${DEVKITA64}/bin/aarch64-none-elf-gcc)
+set(CMAKE_CXX_COMPILER ${DEVKITA64}/bin/aarch64-none-elf-g++)
+set(CMAKE_AR           ${DEVKITA64}/bin/aarch64-none-elf-ar)
+set(CMAKE_RANLIB       ${DEVKITA64}/bin/aarch64-none-elf-ranlib)
+set(CMAKE_STRIP        ${DEVKITA64}/bin/aarch64-none-elf-strip)
 
-execute_process(
-    COMMAND git rev-parse --short=12 HEAD
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE CTR_NATIVE_GIT_HASH
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
+project(ctr_native_switch C)
+set(CMAKE_C_STANDARD 17)
+
+# ── libnx / devkitPro paths ───────────────────────────────────────────────────
+set(LIBNX_DIR        ${DEVKITPRO}/libnx)
+set(PORTLIBS_DIR     ${DEVKITPRO}/portlibs/switch)
+set(SWITCH_TOOLS_DIR ${DEVKITPRO}/tools/bin)
+
+# ── Compiler flags ────────────────────────────────────────────────────────────
+set(ARCH_FLAGS
+    -march=armv8-a+crc+crypto
+    -mtune=cortex-a57
+    -mtp=soft
+    -fPIE
 )
-if(NOT CTR_NATIVE_GIT_HASH)
-    set(CTR_NATIVE_GIT_HASH "unknown")
-endif()
 
-execute_process(
-    COMMAND git diff --quiet --exit-code
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    RESULT_VARIABLE CTR_NATIVE_GIT_DIRTY
-    ERROR_QUIET
+add_compile_options(
+    ${ARCH_FLAGS}
+    -O2
+    -ffunction-sections
+    -fdata-sections
+    -Wall -Wno-unused-function -Wno-strict-aliasing
+
+    # Platform identification
+    -DPLATFORM_SWITCH
+    -D__SWITCH__
+
+    # Feature flags (edit to taste or expose as cmake options)
+    -DUSE_16BY9=0          # default: 4:3 pillarbox; user changes via config.ini
+    -DTARGET_FPS=30        # default: 30; user changes via config.ini
+
+    # SDL3 EGL / OpenGL ES
+    -DSDL_VIDEO_OPENGL_ES2=1
 )
-if(CTR_NATIVE_GIT_DIRTY EQUAL 0)
-    set(CTR_NATIVE_BUILD_ID "${CTR_NATIVE_GIT_HASH}")
+
+include_directories(
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/platform
+    ${CMAKE_SOURCE_DIR}/switch
+    ${LIBNX_DIR}/include
+    ${PORTLIBS_DIR}/include
+)
+
+# ── Source files ──────────────────────────────────────────────────────────────
+# Start from the same unity-include structure as the PC build,
+# but swap main.c for main_switch.c and add switch-specific platform files.
+
+set(SWITCH_SOURCES
+    # Switch entry point (replaces upstream main.c)
+    ${CMAKE_SOURCE_DIR}/switch/main_switch.c
+
+    # Switch platform backends
+    ${CMAKE_SOURCE_DIR}/platform/native_platform_switch.c
+    ${CMAKE_SOURCE_DIR}/platform/native_renderer_switch.c
+    ${CMAKE_SOURCE_DIR}/platform/native_libpad_switch.c
+
+    # Upstream platform layer (audio, CD, assets, etc. – unchanged)
+    ${CMAKE_SOURCE_DIR}/platform/native_assets.c
+    ${CMAKE_SOURCE_DIR}/platform/native_audio.c
+    ${CMAKE_SOURCE_DIR}/platform/native_memory.c
+    ${CMAKE_SOURCE_DIR}/platform/native_checkpoint.c
+    ${CMAKE_SOURCE_DIR}/platform/native_checkpoint_file.c
+    ${CMAKE_SOURCE_DIR}/platform/native_cd.c
+    ${CMAKE_SOURCE_DIR}/platform/native_disc_image.c
+    ${CMAKE_SOURCE_DIR}/platform/native_gpu_links.c
+    ${CMAKE_SOURCE_DIR}/platform/native_gpu.c
+    ${CMAKE_SOURCE_DIR}/platform/native_gte_core.c
+    ${CMAKE_SOURCE_DIR}/platform/native_inline_c.c
+    ${CMAKE_SOURCE_DIR}/platform/native_libapi.c
+    ${CMAKE_SOURCE_DIR}/platform/native_libetc.c
+    ${CMAKE_SOURCE_DIR}/platform/native_libgte.c
+    ${CMAKE_SOURCE_DIR}/platform/native_libgpu.c
+    ${CMAKE_SOURCE_DIR}/platform/native_libspu.c
+    ${CMAKE_SOURCE_DIR}/platform/native_log.c
+    ${CMAKE_SOURCE_DIR}/platform/native_memcard.c
+    ${CMAKE_SOURCE_DIR}/platform/native_memcard_adapter.c
+    ${CMAKE_SOURCE_DIR}/platform/native_perf.c
+    ${CMAKE_SOURCE_DIR}/platform/native_platform.c
+    ${CMAKE_SOURCE_DIR}/platform/native_replay_scheduler.c
+    ${CMAKE_SOURCE_DIR}/platform/native_renderer.c
+    ${CMAKE_SOURCE_DIR}/platform/native_savestate.c
+    ${CMAKE_SOURCE_DIR}/platform/native_state.c
+    ${CMAKE_SOURCE_DIR}/platform/native_str.c
+
+    # Game source (unchanged – all 943 files via unity include)
+    ${CMAKE_SOURCE_DIR}/game/game_unity.c
+    ${CMAKE_SOURCE_DIR}/game/zGlobal_RDATA.c
+    ${CMAKE_SOURCE_DIR}/game/zGlobal_DATA.c
+    ${CMAKE_SOURCE_DIR}/game/zGlobal_SDATA.c
+)
+
+add_executable(ctr_native_switch.elf ${SWITCH_SOURCES})
+
+# ── SDL3 (from portlibs/switch) ───────────────────────────────────────────────
+# devkitpro-pacman: switch-sdl3
+find_library(SDL3_LIB SDL3 PATHS ${PORTLIBS_DIR}/lib REQUIRED)
+
+# ── Linker ────────────────────────────────────────────────────────────────────
+set(LINK_FLAGS
+    ${ARCH_FLAGS}
+    -fPIE
+    -Wl,--gc-sections
+    -specs=${DEVKITPRO}/libnx/switch.specs
+)
+
+target_link_options(ctr_native_switch.elf PRIVATE ${LINK_FLAGS})
+
+target_link_libraries(ctr_native_switch.elf
+    ${SDL3_LIB}
+    ${LIBNX_DIR}/lib/libnx.a
+    ${DEVKITA64}/lib/gcc/aarch64-none-elf/*/libstdc++.a
+    m
+    EGL
+    glapi
+    drm_nouveau
+)
+
+# ── NRO post-processing ───────────────────────────────────────────────────────
+set(NRO_OUTPUT ${CMAKE_BINARY_DIR}/ctr_native.nro)
+set(ELF_OUTPUT $<TARGET_FILE:ctr_native_switch.elf>)
+set(NACPFILE   ${CMAKE_SOURCE_DIR}/switch/ctr_native.nacp)
+set(ICONFILE   ${CMAKE_SOURCE_DIR}/switch/icon.jpg)
+set(ROMFSDIR   "")   # set to a directory path to embed romfs assets in NRO
+
+if(EXISTS ${ROMFSDIR})
+    set(ROMFS_ARG --romfsdir=${ROMFSDIR})
 else()
-    set(CTR_NATIVE_BUILD_ID "${CTR_NATIVE_GIT_HASH}-dirty")
+    set(ROMFS_ARG "")
 endif()
 
-function(ctr_native_add_label_warning_if_supported target warning flag_check)
-    set(saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
-    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-        set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror=unknown-warning-option")
-    endif()
-
-    check_c_compiler_flag("${warning}" "${flag_check}")
-    set(CMAKE_REQUIRED_FLAGS "${saved_required_flags}")
-
-    if(${flag_check})
-        target_compile_options(${target} PRIVATE "${warning}")
-    endif()
-endfunction()
-
-# SDL3
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
-set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-set(SDL_TESTS OFF CACHE BOOL "" FORCE)
-set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(SDL_INSTALL OFF CACHE BOOL "" FORCE)
-set(SDL_GPU OFF CACHE BOOL "" FORCE)
-set(SDL_RENDER OFF CACHE BOOL "" FORCE)
-set(SDL_CAMERA OFF CACHE BOOL "" FORCE)
-set(SDL_SENSOR OFF CACHE BOOL "" FORCE)
-set(SDL_DIALOG OFF CACHE BOOL "" FORCE)
-set(SDL_TRAY OFF CACHE BOOL "" FORCE)
-set(SDL_POWER OFF CACHE BOOL "" FORCE)
-set(SDL_VULKAN OFF CACHE BOOL "" FORCE)
-set(SDL_OPENGLES OFF CACHE BOOL "" FORCE)
-set(SDL_OFFSCREEN OFF CACHE BOOL "" FORCE)
-set(SDL_SNDIO OFF CACHE BOOL "" FORCE)
-set(SDL_SNDIO_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_X11_XSCRNSAVER OFF CACHE BOOL "" FORCE)
-set(SDL_X11_XTEST OFF CACHE BOOL "" FORCE)
-add_subdirectory(externals/SDL)
-
-# CTR Native
-add_executable(ctr_native main.c)
-set_target_properties(ctr_native PROPERTIES
-    C_STANDARD 17
-    C_STANDARD_REQUIRED ON
-    C_EXTENSIONS OFF
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+add_custom_command(
+    OUTPUT ${NRO_OUTPUT}
+    COMMAND ${SWITCH_TOOLS_DIR}/nacptool
+            --create "Crash Team Racing" "CTR-tools" "${CTR_NATIVE_VERSION:-dev}"
+            ${NACPFILE}
+    COMMAND ${SWITCH_TOOLS_DIR}/elf2nro
+            ${ELF_OUTPUT} ${NRO_OUTPUT}
+            --nacp=${NACPFILE}
+            --icon=${ICONFILE}
+            ${ROMFS_ARG}
+    DEPENDS ctr_native_switch.elf
+    COMMENT "Generating NRO homebrew package"
 )
-target_include_directories(ctr_native PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_compile_definitions(ctr_native PRIVATE
-    CTR_NATIVE
-    BUILD=926
-    CTR_INTERNAL
-    CTR_NATIVE_VERSION=\"${CTR_NATIVE_VERSION}\"
-    CTR_NATIVE_BUILD_ID=\"${CTR_NATIVE_BUILD_ID}\"
-)
-if(CTR_NATIVE_MSVC_FRONTEND)
-    target_compile_options(ctr_native PRIVATE
-        /W4 #TODO(aalhendi): fix warnings
-        /bigobj
-        /arch:SSE2
-        /wd4152
-        /wd4244
-        /wd4245
-        /wd4310
-        /wd5287
-    )
-else()
-    target_compile_options(ctr_native PRIVATE
-        -msse
-        -Wenum-conversion
-        -Wenum-compare
-        -Wswitch-enum
-        -Wformat
-        -Wparentheses
-        $<$<CONFIG:Release>:-O2>
-        $<$<CONFIG:Release>:-g>
-    )
 
-    if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-        target_compile_options(ctr_native PRIVATE -Wall -Wextra -Wstrict-aliasing=2)
-        ctr_native_add_label_warning_if_supported(ctr_native -Wfree-labels CTR_HAS_WFREE_LABELS)
-    elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
-        ctr_native_add_label_warning_if_supported(ctr_native -Wc23-extensions CTR_HAS_WC23_EXTENSIONS)
-    endif()
-endif()
-target_link_libraries(ctr_native SDL3::SDL3)
-if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_link_options(ctr_native PRIVATE -static-libgcc)
-endif()
-if(MINGW)
-    target_link_options(ctr_native PRIVATE -static)
-endif()
+add_custom_target(nro ALL DEPENDS ${NRO_OUTPUT})
 
-include(CTest)
-if(BUILD_TESTING)
-    add_test(NAME ctr_native_version COMMAND $<TARGET_FILE:ctr_native> --version)
-    set_tests_properties(ctr_native_version PROPERTIES PASS_REGULAR_EXPRESSION "^CTR Native ")
-endif()
+# ── Install target (copies NRO to switch/ subdirectory for SD card) ───────────
+install(FILES ${NRO_OUTPUT}
+        DESTINATION switch/ctr_native)
