@@ -28,7 +28,6 @@ static inline struct InstDrawPerPlayer *DecalMP_GetIdpp(struct Instance *inst, i
 }
 
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80023488-0x80023640.
 void DecalMP_01(struct GameTracker *gGT)
 {
 	if (gGT->numPlyrCurrGame == 0)
@@ -85,7 +84,6 @@ void DecalMP_01(struct GameTracker *gGT)
 }
 
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80023640-0x80023784.
 void DecalMP_02(struct GameTracker *gGT)
 {
 	for (int index = 0; index < 12; index++)
@@ -120,7 +118,7 @@ void DecalMP_02(struct GameTracker *gGT)
 
 				if ((entry->pb.ptrOT != NULL) && (entry->pb.renderBucketOTRangeEnd != NULL))
 				{
-					uint32_t *cameraOT = gGT->pushBuffer[cameraID].ptrOT;
+					u32 *cameraOT = gGT->pushBuffer[cameraID].ptrOT;
 					*entry->pb.ptrOT = cameraOT[0x3ff];
 					cameraOT[0x3ff] = CtrGpu_PrimToOTLink24(entry->pb.renderBucketOTRangeEnd);
 				}
@@ -140,7 +138,6 @@ void DecalMP_02(struct GameTracker *gGT)
 }
 
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80023784-0x80023a40.
 void DecalMP_03(struct GameTracker *gGT)
 {
 	RECT viewport;
@@ -217,7 +214,7 @@ void DecalMP_03(struct GameTracker *gGT)
 
 		poly->tpage = (u16)getTPage(TEXPAGE_COLOR_15BIT, TRANS_50, (u32)texX, (u32)texY);
 
-		uint32_t *ot = gGT->pushBuffer[cameraID].ptrOT + (entry->pb.renderBucketOTByteOffset >> 2);
+		u32 *ot = gGT->pushBuffer[cameraID].ptrOT + (entry->pb.renderBucketOTByteOffset >> 2);
 		poly->tag = CtrGpu_PackOTTag(*ot, 0x09000000);
 		CtrGpu_LinkPrimToOT(ot, poly);
 		gGT->backBuffer->primMem.cursor = poly + 1;

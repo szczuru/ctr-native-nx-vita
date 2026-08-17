@@ -66,7 +66,6 @@ enum
 	MM_HIGHSCORE_MENU_WIDTH = 0xa4,
 };
 
-// NOTE(aalhendi): ASM-verified against NTSC-U 926 overlay 230 0x800b2f0c-0x800b2fbc.
 void MM_HighScore_Text3D(char *string, int posX, int posY, s16 font, u32 flags)
 {
 	// draw a string
@@ -76,7 +75,6 @@ void MM_HighScore_Text3D(char *string, int posX, int posY, s16 font, u32 flags)
 	DecalFont_DrawLine(string, posX + MM_HIGHSCORE_TEXT_SHADOW_X, posY + MM_HIGHSCORE_TEXT_SHADOW_Y, font, (flags & (JUSTIFY_CENTER | JUSTIFY_RIGHT)) | BLACK);
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 230 0x800b2fbc-0x800b3914.
 void MM_HighScore_Draw(u16 trackIndex, u32 rowIndex, u32 posX, u32 posY)
 {
 	struct GameTracker *gGT = sdata->gGT;
@@ -169,7 +167,8 @@ void MM_HighScore_Draw(u16 trackIndex, u32 rowIndex, u32 posX, u32 posY)
 		RECTMENU_DrawPolyGT4(gGT->ptrIcons[data.MetaDataCharacters[entry[0].characterID].iconID],
 		                     bestLapEntryMeta->currX + offsetX + MM_HIGHSCORE_BEST_LAP_ICON_X_OFFSET,
 		                     bestLapEntryMeta->currY + offsetY + MM_HIGHSCORE_BEST_LAP_ICON_Y_OFFSET, &gGT->backBuffer->primMem, (gGT->pushBuffer_UI).ptrOT,
-		                     iconColor.self, iconColor.self, iconColor.self, iconColor.self, MM_HIGHSCORE_ICON_TRANSPARENCY, MM_HIGHSCORE_ICON_SCALE);
+		                     ColorCode_GetPacked(&iconColor), ColorCode_GetPacked(&iconColor), ColorCode_GetPacked(&iconColor), ColorCode_GetPacked(&iconColor),
+		                     MM_HIGHSCORE_ICON_TRANSPARENCY, MM_HIGHSCORE_ICON_SCALE);
 	}
 
 	// Draw five "best track times"
@@ -184,8 +183,8 @@ void MM_HighScore_Draw(u16 trackIndex, u32 rowIndex, u32 posX, u32 posY)
 		                     D230.transitionMeta_HighScores[metaIndex].currX + offsetX + MM_HIGHSCORE_SCORE_ICON_X_OFFSET,
 		                     D230.transitionMeta_HighScores[metaIndex].currY + offsetY + (scoreRowIndex * MM_HIGHSCORE_SCORE_ROW_Y_STEP) +
 		                         MM_HIGHSCORE_SCORE_NAME_Y_OFFSET,
-		                     &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, iconColor.self, iconColor.self, iconColor.self, iconColor.self,
-		                     MM_HIGHSCORE_ICON_TRANSPARENCY, MM_HIGHSCORE_ICON_SCALE);
+		                     &gGT->backBuffer->primMem, gGT->pushBuffer_UI.ptrOT, ColorCode_GetPacked(&iconColor), ColorCode_GetPacked(&iconColor),
+		                     ColorCode_GetPacked(&iconColor), ColorCode_GetPacked(&iconColor), MM_HIGHSCORE_ICON_TRANSPARENCY, MM_HIGHSCORE_ICON_SCALE);
 
 		// draw the name string
 		MM_HighScore_Text3D(entry[entryIndex].name, D230.transitionMeta_HighScores[metaIndex].currX + offsetX + MM_HIGHSCORE_SCORE_NAME_X_OFFSET,
@@ -209,7 +208,6 @@ void MM_HighScore_Draw(u16 trackIndex, u32 rowIndex, u32 posX, u32 posY)
 	MM_TrackSelect_Video_Draw(&videoBox, &D230.arcadeTracks[0], trackIndex, (D230.highScoreTransition.state == EXITING_MENU), 0);
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b3914-0x800b3954.
 void MM_HighScore_Init(void)
 {
 	D230.highScoreTransition.state = ENTERING_MENU;
@@ -221,7 +219,6 @@ void MM_HighScore_Init(void)
 	MM_TrackSelect_Video_SetDefaults();
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 overlay 230 0x800b3954-0x800b3fe4.
 void MM_HighScore_MenuProc(struct RectMenu *menu_unused)
 {
 	(void)menu_unused;
@@ -334,7 +331,6 @@ void MM_HighScore_MenuProc(struct RectMenu *menu_unused)
 	else
 	{
 		videoResetRequested = true;
-		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800b3ad8-0x800b3ae4 for high-score back SFX.
 		OtherFX_Play(2, 1);
 		D230.highScoreTransition.state = EXITING_MENU;
 	}

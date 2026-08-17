@@ -44,14 +44,13 @@ static struct NativeReplaySchedulerFrameInfo MainReplayScheduler_FrameInfo(struc
 	info.audioRNG = sdata->audioRNG;
 	info.deadcoed0 = (u32)gGT->deadcoed_struct.state0;
 	info.deadcoed1 = (u32)gGT->deadcoed_struct.state1;
-	info.advRng0 = (u32)sdata->const_0x30215400;
-	info.advRng1 = (u32)sdata->const_0x493583fe;
+	info.advRng0 = sdata->advRng.state0;
+	info.advRng1 = sdata->advRng.state1;
 
 	return info;
 }
 #endif
 
-// NOTE(aalhendi): PSX path ASM-verified NTSC-U 926 0x8003c58c-0x8003cf7c.
 #ifdef CTR_NATIVE
 u32 CTR_Main(void)
 #else
@@ -91,7 +90,6 @@ u32 main(void)
 #endif
 
 		LOAD_NextQueuedFile();
-		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003c5d0-0x8003c5dc for per-frame XA pause handling.
 		CDSYS_XAPauseAtEnd();
 
 		switch (sdata->mainGameState)
@@ -107,7 +105,6 @@ u32 main(void)
 			ElimBG_Deactivate(gGT);
 
 			MainStats_RestartRaceCountLoss();
-			// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003c9f8-0x8003ca04 for load-complete voiceline reset.
 			Voiceline_ClearTimeStamp();
 
 			// Disable End-Of-Race menu
@@ -135,7 +132,6 @@ u32 main(void)
 			GAMEPAD_GetNumConnected(gGS);
 
 			sdata->boolSoundPaused = 0;
-			// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003caa4-0x8003cab4 for load-complete engine audio init.
 			VehBirth_EngineAudio_AllPlayers();
 
 			// 9 = intro cutscene
@@ -396,7 +392,7 @@ u32 main(void)
 					uVar12 = 100;
 				}
 
-				DecalFont_DrawMultiLine(sdata->lngStrings[LNG_DEMO_MODE_PRESS_ANY_BUTTON_TO_EXIT], 0x100, uVar12, 0x200, 2, 0xffff8000);
+				DecalFont_DrawMultiLine(sdata->lngStrings[LNG_DEMO_MODE_PRESS_ANY_BUTTON_TO_EXIT], 0x100, uVar12, 0x200, FONT_SMALL, JUSTIFY_CENTER | ORANGE);
 			}
 
 			if ((gGT->gameMode1 & LOADING) == 0)
@@ -568,7 +564,7 @@ void StateZero()
 
 	Timer_Init();
 	EnterCriticalSection();
-	sdata->MainDrawCb_DrawSyncPtr = (void *)(uintptr_t)DrawSyncCallback(&MainDrawCb_DrawSync);
+	sdata->MainDrawCb_DrawSyncPtr = (void *)(u32)DrawSyncCallback(&MainDrawCb_DrawSync);
 	ExitCriticalSection();
 
 	MEMCARD_InitCard();
@@ -606,7 +602,6 @@ void StateZero()
 #endif
 
 	// English=1
-	// PAL SCES02105 calls it multiple times
 	LOAD_LangFile((int)sdata->ptrBigfile1, 1);
 	GAMEPROG_NewGame_OnBoot();
 	gGT->overlayIndex_null_notUsed = 0;
@@ -641,7 +636,6 @@ void StateZero()
 	MainInit_VRAMDisplay();
 
 	// \SOUNDS\KART.HWL;1
-	// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003c8e0-0x8003c928 for startup HOWL/music/XA setup.
 	howl_InitGlobals(data.kartHwlPath);
 
 	VSyncCallback(MainDrawCb_Vsync);
@@ -657,7 +651,6 @@ void StateZero()
 	while (sdata->XA_State != 0)
 	{
 		// WARNING: Read-only address (ram, 0x8008d888) is written
-		// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8003c940-0x8003c948 for startup XA pause polling.
 #ifdef CTR_NATIVE
 		// NOTE(aalhendi): Retail hardware interrupts keep XA/audio moving while
 		// this loop spins. Native owns VBlank in VSync(), so pump it here.

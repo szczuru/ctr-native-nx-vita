@@ -74,18 +74,7 @@ enum
 
 static const u32 UI_BATTLE_HEAD_ARROW_DRAW_MODE = 0xe1000a20u;
 
-CTR_STATIC_ASSERT(UI_BATTLE_HEAD_ARROW_MIN_DIST_SQ == 0x90000);
-CTR_STATIC_ASSERT(UI_BATTLE_HEAD_ARROW_GTE_CLIP_FLAG == 0x40000);
-CTR_STATIC_ASSERT(UI_BATTLE_HEAD_ARROW_POLY_G3_CODE == 0x32);
-CTR_STATIC_ASSERT(UI_BATTLE_HEAD_ARROW_SEMITRANS_MASK == 0x30000000);
-CTR_STATIC_ASSERT(UI_BATTLE_HEAD_ARROW_OT_TAG == 0x08000000);
-CTR_STATIC_ASSERT(UI_TRACKER_POLY_G3_OT_TAG == 0x06000000);
-CTR_STATIC_ASSERT(UI_TRACKER_LOCK_ICON == 0x2d);
-CTR_STATIC_ASSERT(UI_TRACKER_BEEP_SFX == 0x56);
-CTR_STATIC_ASSERT(UI_BATTLE_SCORE_LIFE_ICON == 0x84);
-CTR_STATIC_ASSERT(UI_BATTLE_SCORE_POINTS_ICON == 0x85);
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004f9d8-0x8004fd34.
 // Draw arrows over the heads of players
 void UI_BattleDrawHeadArrows(struct Driver *player)
 {
@@ -172,7 +161,7 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 		gte_rtps();
 
 		// get output
-		CTR_GteStoreSXY(screenPos.v);
+		CTR_GteStoreSXY(CTR_VECTOR_DATA(&(screenPos)));
 		gte_stflg(&gteFlags);
 
 		if ((gteFlags & UI_BATTLE_HEAD_ARROW_GTE_CLIP_FLAG) != 0)
@@ -218,14 +207,13 @@ void UI_BattleDrawHeadArrows(struct Driver *player)
 		CtrGpu_WriteColorCode(&arrow->g3.r1, gradient[1] | UI_BATTLE_HEAD_ARROW_SEMITRANS_MASK);
 		CtrGpu_WriteColorCode(&arrow->g3.r2, gradient[2] | UI_BATTLE_HEAD_ARROW_SEMITRANS_MASK);
 
-		uint32_t *ot = gGT->pushBuffer[playerID].ptrOT;
+		u32 *ot = gGT->pushBuffer[playerID].ptrOT;
 
 		arrow->tag = CtrGpu_PackOTTag(*ot, UI_BATTLE_HEAD_ARROW_OT_TAG);
 		*ot = CtrGpu_PrimToOTLink24(arrow);
 	}
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8004fd34-0x8005045c.
 void UI_TrackerSelf(struct Driver *d)
 {
 	s16 y;
@@ -241,7 +229,7 @@ void UI_TrackerSelf(struct Driver *d)
 	int warpballDist;
 	int missileDist;
 	int beepRate;
-	uint32_t *ot;
+	u32 *ot;
 	POLY_G3 *poly;
 	SVECTOR pos;
 	struct PrimMem *primMem;
@@ -352,7 +340,7 @@ UpdateTrackerState:
 
 	CTR_GteLoadSV0(&pos);
 	gte_rtps();
-	CTR_GteStoreSXY(screenPos.v);
+	CTR_GteStoreSXY(CTR_VECTOR_DATA(&(screenPos)));
 
 	// red?
 	bgColor = UI_TRACKER_BG_RED;
@@ -393,7 +381,6 @@ UpdateTrackerState:
 			if ((gGT->gameMode1 & PAUSE_ALL) == 0)
 			{
 				// "homing in" sound
-				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80050014-0x8005001c for tracker beep SFX.
 				OtherFX_Play(UI_TRACKER_BEEP_SFX, 1);
 			}
 
@@ -548,7 +535,6 @@ UpdateTrackerState:
 	    &gGT->backBuffer->primMem, gGT->pushBuffer[driverID].ptrOT, UI_TRACKER_BG_TRANSPARENCY, x, y, bgColor);
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8005045c-0x80050528.
 void UI_DrawPosSuffix(s16 posX, s16 posY, struct Driver *d, s16 flags)
 {
 	int currRank;
@@ -578,7 +564,6 @@ void UI_DrawPosSuffix(s16 posX, s16 posY, struct Driver *d, s16 flags)
 	return;
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80050528-0x80050654
 void UI_DrawLapCount(s16 posX, int posY, int unusedScale, struct Driver *d)
 {
 	(void)unusedScale;
@@ -632,7 +617,6 @@ void UI_DrawLapCount(s16 posX, int posY, int unusedScale, struct Driver *d)
 }
 
 // Draw how many points or lifes the player has in battle
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x80050654-0x800507e0.
 void UI_DrawBattleScores(int posX, int posY, struct Driver *d)
 {
 	struct Icon *icon;

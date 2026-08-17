@@ -52,18 +52,10 @@ CTR_STATIC_ASSERT(sizeof(struct PushBufferSetMatrixVPScratch) == CTR_SCRATCHPAD_
 
 // Let the compiler figure it out,
 // the bitshifting annoys me
-union FrustumCornerIN
+struct FrustumCornerIN
 {
-	struct
-	{
-		s16 x;
-		s16 y;
-	};
-
-	struct
-	{
-		int self;
-	};
+	s16 x;
+	s16 y;
 };
 
 struct PushBuffer
@@ -140,11 +132,11 @@ struct PushBuffer
 	// 0xF4
 	// NOTE(aalhendi): Retail RenderBucket_QueueDraw reuses this field as
 	// PUSHBUFFER_EXISTS OT range-start metadata after DecalMP seeds ptrOT.
-	uint32_t *ptrOT;
+	u32 *ptrOT;
 
 	// 0xF8
 	// RenderBucket PUSHBUFFER_EXISTS range end metadata.
-	uint32_t *renderBucketOTRangeEnd;
+	u32 *renderBucketOTRangeEnd;
 
 	// 0xFC
 	int renderBucketOTByteOffset;

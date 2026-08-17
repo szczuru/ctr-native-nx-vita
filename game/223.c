@@ -56,7 +56,6 @@ global_variable char s_crateCountFormat223[12] = "%2.02d/%ld";
 global_variable char s_countdownStartFormat223[4] = "-10";
 global_variable char s_countdownFormat223[4] = "-%d";
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009f71c-0x8009fcd0.
 void RR_EndEvent_UnlockAward(void)
 {
 	struct GameTracker *gGT = sdata->gGT;
@@ -107,7 +106,7 @@ void RR_EndEvent_UnlockAward(void)
 			if (gGT->levelID == TURBO_TRACK)
 			{
 				// unlock turbo track
-				sdata->gameProgress.unlockFlags |= GAME_UNLOCK_TURBO_TRACK_MASK;
+				sdata->gameProgress.unlocks[0] |= GAME_UNLOCK_TURBO_TRACK_MASK;
 			}
 
 			continue;
@@ -124,7 +123,6 @@ void RR_EndEvent_UnlockAward(void)
 	}
 }
 
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800a01d8-0x800a0cb8.
 void RR_EndEvent_DrawMenu(void)
 {
 	SVec2 pos;
@@ -149,7 +147,7 @@ void RR_EndEvent_DrawMenu(void)
 	// driver->numTimeCrates = gGT->timeCratesInLEV;
 
 	// change color
-	textColor = (gGT->timer & 1) ? 0xffff8000 : 0xffff8004;
+	textColor = (gGT->timer & 1) ? (JUSTIFY_CENTER | ORANGE) : (JUSTIFY_CENTER | WHITE);
 
 	rewardBit = gGT->levelID + ADV_REWARD_FIRST_PLATINUM_RELIC;
 
@@ -165,7 +163,7 @@ void RR_EndEvent_DrawMenu(void)
 		relic->colorRGBA = RR_GOLD_RELIC_COLOR;
 	}
 
-	sdata->ptrTimebox1->scale = (SVec3){{RR_TIMEBOX_SCALE, RR_TIMEBOX_SCALE, RR_TIMEBOX_SCALE}};
+	sdata->ptrTimebox1->scale = (SVec3){RR_TIMEBOX_SCALE, RR_TIMEBOX_SCALE, RR_TIMEBOX_SCALE};
 
 	if (sdata->framesSinceRaceEnded < RR_RESULT_MAX_FRAMES)
 	{
@@ -217,7 +215,7 @@ void RR_EndEvent_DrawMenu(void)
 
 
 	// interpolate fly-in
-	UI_Lerp2D_Linear(pos.v, startX, 0x32, 0x100, endY, elapsedFrames, RR_LERP_FRAMES);
+	UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), startX, 0x32, 0x100, endY, elapsedFrames, RR_LERP_FRAMES);
 
 	UI_DrawRaceClock(pos.x, pos.y - 8, UI_RACE_CLOCK_SHOW_RESULTS, driver);
 
@@ -232,8 +230,8 @@ void RR_EndEvent_DrawMenu(void)
 		{
 			elapsedFrames -= RR_FLYOUT_FRAME_OFFSET;
 
-			UI_Lerp2D_Linear(pos.v, UI_ConvertX_2(0x100, RR_SCREEN_DEPTH), UI_ConvertY_2(0xa2, RR_SCREEN_DEPTH), UI_ConvertX_2(-0x64, RR_SCREEN_DEPTH),
-			                 UI_ConvertY_2(0xa2, RR_SCREEN_DEPTH), elapsedFrames, RR_LERP_FRAMES);
+			UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), UI_ConvertX_2(0x100, RR_SCREEN_DEPTH), UI_ConvertY_2(0xa2, RR_SCREEN_DEPTH),
+			                 UI_ConvertX_2(-0x64, RR_SCREEN_DEPTH), UI_ConvertY_2(0xa2, RR_SCREEN_DEPTH), elapsedFrames, RR_LERP_FRAMES);
 		}
 
 		else if (elapsedFrames >= RR_RELIC_GROW_START_FRAME)
@@ -242,7 +240,6 @@ void RR_EndEvent_DrawMenu(void)
 			if (elapsedFrames == RR_RELIC_GROW_START_FRAME)
 			{
 				// play sound of unlocking relic
-				// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800a04cc-0x800a04d4 for relic unlock SFX.
 				OtherFX_Play(RR_RELIC_AWARD_SFX, 1);
 			}
 
@@ -253,8 +250,9 @@ void RR_EndEvent_DrawMenu(void)
 				relic->scale.z += RR_RELIC_GROW_STEP;
 			}
 
-			UI_Lerp2D_Linear(pos.v, UI_ConvertX_2(0x100, RR_SCREEN_DEPTH), UI_ConvertY_2(0xa2, RR_SCREEN_DEPTH), UI_ConvertX_2(0x100, RR_SCREEN_DEPTH),
-			                 UI_ConvertY_2(0xa2, RR_SCREEN_DEPTH), elapsedFrames - RR_RELIC_AWARD_START_FRAME, RR_LERP_FRAMES);
+			UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), UI_ConvertX_2(0x100, RR_SCREEN_DEPTH), UI_ConvertY_2(0xa2, RR_SCREEN_DEPTH),
+			                 UI_ConvertX_2(0x100, RR_SCREEN_DEPTH), UI_ConvertY_2(0xa2, RR_SCREEN_DEPTH), elapsedFrames - RR_RELIC_AWARD_START_FRAME,
+			                 RR_LERP_FRAMES);
 		}
 	}
 
@@ -270,12 +268,12 @@ void RR_EndEvent_DrawMenu(void)
 			elapsedFrames -= RR_FLYOUT_FRAME_OFFSET;
 
 			// interpolate fly-in
-			UI_Lerp2D_Linear(pos.v, 200, 0x79, 0x264, 0x79, elapsedFrames, RR_LERP_FRAMES);
+			UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), 200, 0x79, 0x264, 0x79, elapsedFrames, RR_LERP_FRAMES);
 		}
 
 		else
 		{
-			UI_Lerp2D_Linear(pos.v, 200, 0x79, 200, 0x79, elapsedFrames, RR_LERP_FRAMES);
+			UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), 200, 0x79, 200, 0x79, elapsedFrames, RR_LERP_FRAMES);
 		}
 
 		sdata->ptrTimebox1->matrix.t[0] = UI_ConvertX_2(pos.x, RR_SCREEN_DEPTH);
@@ -315,12 +313,11 @@ void RR_EndEvent_DrawMenu(void)
 				// 0 frames after the first 80
 				if (elapsedFrames == 0)
 				{
-					// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800a07e8-0x800a07f0 for PERFECT fly-in SFX.
 					OtherFX_Play(RR_PERFECT_SFX, 1);
 				}
 			}
 
-			UI_Lerp2D_Linear(pos.v, startX, 0, endX, 0, elapsedFrames, RR_LERP_FRAMES);
+			UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), startX, 0, endX, 0, elapsedFrames, RR_LERP_FRAMES);
 
 			DecalFont_DrawLine(sdata->lngStrings[LNG_PERFECT], pos.x, 0x8a, 1, textColor);
 		}
@@ -339,7 +336,7 @@ void RR_EndEvent_DrawMenu(void)
 			if (elapsedFrames >= RR_FLYOUT_FRAME_OFFSET)
 			{
 				// interpolate fly-out
-				UI_Lerp2D_Linear(pos.v, 0x199, 0x32, 0x199, -0x32, elapsedFrames - RR_COUNTDOWN_START_FRAME, RR_LERP_FRAMES);
+				UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), 0x199, 0x32, 0x199, -0x32, elapsedFrames - RR_COUNTDOWN_START_FRAME, RR_LERP_FRAMES);
 				drawCountdown = 1;
 			}
 
@@ -364,7 +361,6 @@ void RR_EndEvent_DrawMenu(void)
 					{
 						// subtract a second
 						driver->timeElapsedInRace -= RR_RACE_TIME_ONE_SECOND;
-						// NOTE(aalhendi): ASM-verified NTSC-U 926 0x800a08e0-0x800a08f4 for relic countdown tick SFX.
 						OtherFX_Play(RR_COUNTDOWN_TICK_SFX, 1);
 					}
 
@@ -372,7 +368,7 @@ void RR_EndEvent_DrawMenu(void)
 				}
 
 				// interpolate fly-in
-				UI_Lerp2D_Linear(pos.v, 0x296, 0x2a, 0x199, 0x2a, elapsedFrames - RR_COUNTDOWN_START_FRAME, RR_LERP_FRAMES);
+				UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), 0x296, 0x2a, 0x199, 0x2a, elapsedFrames - RR_COUNTDOWN_START_FRAME, RR_LERP_FRAMES);
 				drawCountdown = 1;
 			}
 
@@ -420,7 +416,7 @@ void RR_EndEvent_DrawMenu(void)
 		}
 
 		// interpolate fly-in
-		UI_Lerp2D_Linear(pos.v, startX, 0x50, endX, 0x50, elapsedFrames, RR_LERP_FRAMES);
+		UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), startX, 0x50, endX, 0x50, elapsedFrames, RR_LERP_FRAMES);
 
 		DecalFont_DrawLine(sdata->lngStrings[LNG_RELIC_AWARDED], pos.x, pos.y, 1, textColor);
 	}
@@ -450,7 +446,7 @@ skipRelicAwarded:
 		}
 
 		// Interpolate fly-in
-		UI_Lerp2D_Linear(pos.v, startX, 0x50, endX, 0x50, elapsedFrames, RR_LERP_FRAMES);
+		UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), startX, 0x50, endX, 0x50, elapsedFrames, RR_LERP_FRAMES);
 
 		DecalFont_DrawLine(sdata->lngStrings[LNG_NEW_HIGH_SCORE], pos.x, pos.y, 1, textColor);
 	}
@@ -467,7 +463,7 @@ skipRelicAwarded:
 		elapsedFrames -= RR_FLYOUT_FRAME_OFFSET;
 
 		// Interpolate, vertical fly-out
-		UI_Lerp2D_Linear(pos.v, -0xa, 0xc, -0xa, -0x58, elapsedFrames, RR_LERP_FRAMES);
+		UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), -0xa, 0xc, -0xa, -0x58, elapsedFrames, RR_LERP_FRAMES);
 	}
 
 
@@ -490,7 +486,7 @@ skipRelicAwarded:
 	{
 		RR_EndEvent_DrawHighScore(0x100, 10, RR_SCORE_MODE_RELIC_RACE);
 
-		DecalFont_DrawLine(sdata->lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, 1, 0xffff8000);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_PRESS_TO_CONTINUE], 0x100, 0xbe, FONT_BIG, JUSTIFY_CENTER | ORANGE);
 
 		if ((sdata->AnyPlayerTap & RR_CONFIRM_BUTTON_MASK) != 0)
 		{
@@ -504,7 +500,6 @@ skipRelicAwarded:
 }
 
 // same in TT and RR, but not the same in Main Menu
-// NOTE(aalhendi): ASM-verified NTSC-U 926 0x8009fcd0-0x800a01d8.
 void RR_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode)
 {
 	// This is different from High Score in Main Menu because Main Menu
@@ -526,9 +521,9 @@ void RR_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode)
 	// Start and End are the same
 
 	// interpolate fly-in
-	UI_Lerp2D_Linear(pos.v, startX, startY, startX, startY, sdata->framesSinceRaceEnded, RR_LERP_FRAMES);
+	UI_Lerp2D_Linear(CTR_VECTOR_DATA(&(pos)), startX, startY, startX, startY, sdata->framesSinceRaceEnded, RR_LERP_FRAMES);
 
-	DecalFont_DrawLine(sdata->lngStrings[LNG_BEST_TIMES], pos.x, pos.y, 1, 0xffff8000);
+	DecalFont_DrawLine(sdata->lngStrings[LNG_BEST_TIMES], pos.x, pos.y, FONT_BIG, JUSTIFY_CENTER | ORANGE);
 
 	// Draw icon, name, and time of the
 	// 5 best times in Time Trial
@@ -596,14 +591,14 @@ void RR_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode)
 	if (scoreMode == RR_SCORE_MODE_TIME_TRIAL)
 	{
 		// Change the way text flickers
-		timeColor = 0xffff8000;
+		timeColor = JUSTIFY_CENTER | ORANGE;
 
-		DecalFont_DrawLine(sdata->lngStrings[LNG_BEST_LAP], startX, startY + 0x95, 1, timeColor);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_BEST_LAP], startX, startY + 0x95, FONT_BIG, timeColor);
 
 		// If you got a new best lap
 		if (((gGT->gameModeEnd & NEW_BEST_LAP) != 0) && ((gGT->timer & RR_HIGH_SCORE_FLASH_TIMER_BIT) != 0))
 		{
-			timeColor = 0xffff8004;
+			timeColor = JUSTIFY_CENTER | WHITE;
 		}
 
 		// make a string for best lap
@@ -611,17 +606,17 @@ void RR_EndEvent_DrawHighScore(s16 startX, int startY, s16 scoreMode)
 	}
 	else
 	{
-		DecalFont_DrawLine(sdata->lngStrings[LNG_YOUR_TIME], startX, startY + 0x95, 1, 0xffff8000);
+		DecalFont_DrawLine(sdata->lngStrings[LNG_YOUR_TIME], startX, startY + 0x95, FONT_BIG, JUSTIFY_CENTER | ORANGE);
 
 		// make a string for your current track time
 		timeString = RECTMENU_DrawTime(driver->timeElapsedInRace);
 
 		// color
-		timeColor = 0xffff8000;
+		timeColor = JUSTIFY_CENTER | ORANGE;
 	}
 
 	// Print amount of time, for whichever purpose
-	DecalFont_DrawLine(timeString, startX, startY + 0xa6, 2, timeColor);
+	DecalFont_DrawLine(timeString, startX, startY + 0xa6, FONT_SMALL, timeColor);
 
 	box.x = pos.x - 0x60;
 	box.y = pos.y - 4;
