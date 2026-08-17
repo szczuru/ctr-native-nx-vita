@@ -22,8 +22,11 @@ on:
 
 jobs:
   build-vita:
-    name: Build VPK (vitasdk)
+    name: Build VPK (vitasdk Docker)
     runs-on: ubuntu-latest
+    # Oficjalny obraz vitasdk – $VITASDK i PATH już ustawione wewnątrz.
+    # Obraz: vitasdk/vitasdk:latest (multi-arch: amd64 + arm64, ~1.6 GB).
+    # Jeśli rozmiar jest problemem: vitasdk/vitasdk:latest-minimal (~764 MB).
     container:
       image: vitasdk/vitasdk:latest
       options: --user root
@@ -35,18 +38,19 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # vitaGL must be compiled from source and installed to the vitasdk sysroot
-      - name: Install vitaGL
+      # VitaGL buduje się przez `make install`, NIE przez cmake.
+      # Repozytorium: https://github.com/Rinnegatamante/vitaGL
+      # Wymagania: vitasdk (dostarczone przez obraz), make, git (dostarczone przez obraz).
+      - name: Install VitaGL
         run: |
-          export VITASDK=/usr/local/vitasdk
-          export PATH="$VITASDK/bin:$PATH"
           git clone --depth 1 https://github.com/Rinnegatamante/vitaGL.git /tmp/vitaGL
-          cmake -B /tmp/vitaGL/build -S /tmp/vitaGL \
-            -DCMAKE_TOOLCHAIN_FILE="$VITASDK/share/vita.toolchain.cmake" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DUSE_SHARK=1
-          cmake --build /tmp/vitaGL/build --parallel $(nproc)
-          cmake --install /tmp/vitaGL/build
+          cd /tmp/vitaGL
+          # USE_SHARK=1 – włącza vitashark (wymagany dla GLSL shaderów w VitaGL)
+          # HAVE_UNFLIPPED_FBOS=1 – poprawia orientację FBO (ważne dla naszego blitu)
+          make install \
+            USE_SHARK=1 \
+            HAVE_UNFLIPPED_FBOS=1 \
+            -j$(nproc)
 
       - name: Set version
         id: ver
@@ -58,8 +62,6 @@ jobs:
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Configure (CMake)
-        env:
-          VITASDK: /usr/local/vitasdk
         run: |
           cmake -B build-vita \
             -DCMAKE_TOOLCHAIN_FILE="$VITASDK/share/vita.toolchain.cmake" \
@@ -68,8 +70,6 @@ jobs:
             -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}"
 
       - name: Build ELF + VPK
-        env:
-          VITASDK: /usr/local/vitasdk
         run: cmake --build build-vita --parallel $(nproc) --target vpk
 
       - name: Verify VPK
@@ -89,26 +89,24 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
-          name: "CTR Native ${{ github.event.inputs.release_tag }} – PS Vita"
+          name: "CTR Native ${{ github.event.inputs.release_tag }} – PlayStation Vita"
           body: |
             ## CTR Native – PlayStation Vita
 
-            ### Installation
-            1. Transfer `ctr_native.vpk` to your Vita via VitaShell or FTP.
-            2. Install the VPK from VitaShell.
-            3. Place your NTSC-U CTR disc image on the Vita:
+            ### Instalacja
+            1. Prześlij `ctr_native.vpk` na Vitę przez VitaShell lub FTP.
+            2. Zainstaluj VPK z VitaShell.
+            3. Umieść obraz dysku gry (NTSC-U):
                ```
                ux0:/data/ctr_native/assets/ctr-u.bin
                ```
-               or extracted assets in `ux0:/data/ctr_native/assets/`.
 
-            ### Configuration
-            Edit `ux0:/data/ctr_native/config.ini` (created on first launch):
-            | Key | Values | Description |
+            ### Konfiguracja (`ux0:/data/ctr_native/config.ini`, tworzony przy pierwszym uruchomieniu)
+            | Klucz | Wartości | Opis |
             |---|---|---|
-            | `widescreen` | 0 / 1 | 0 = 4:3 pillarbox (default), 1 = 16:9 stretch |
-            | `target_fps` | 30 / 60 | Frame rate target |
-            | `bilinear`   | 0 / 1 | 0 = PSX-authentic nearest, 1 = bilinear filter |
+            | `widescreen` | 0 / 1 | 0 = 4:3 pillarbox (domyślnie), 1 = 16:9 stretch |
+            | `target_fps` | 30 / 60 | Docelowa liczba klatek |
+            | `bilinear`   | 0 / 1 | 0 = nearest (PSX-authentic), 1 = bilinear |
 
             **Build ID:** `${{ github.sha }}`
           files: build-vita/ctr_native.vpk
