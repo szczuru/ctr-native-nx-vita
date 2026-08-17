@@ -4,7 +4,7 @@ include(CheckCCompilerFlag)
 
 set(CTR_NATIVE_VERSION "0.1.0-beta.7.1")
 
-if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4 AND NOT CTR_NATIVE_SKIP_BITWIDTH_CHECK)
     message(FATAL_ERROR
         "CTR Native currently requires a 32-bit target. "
         "Select Win32 for MSVC, an i686 MinGW compiler on Windows, or pass -m32 "
