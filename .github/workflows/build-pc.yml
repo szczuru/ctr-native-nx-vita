@@ -1,0 +1,142 @@
+name: Build – PC (Windows + Linux)
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'platform/**'
+      - 'game/**'
+      - 'include/**'
+      - 'externals/**'
+      - 'main.c'
+      - 'CMakeLists.txt'
+      - '.github/workflows/build-pc.yml'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (leave empty for CI-only build)'
+        required: false
+        default: ''
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  build-windows:
+    name: Build (Windows / MSVC x86)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSVC (x86)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+
+      - name: Set version
+        id: ver
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.release_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="$(git describe --tags --always --dirty 2>/dev/null || echo 'dev')"
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Configure
+        run: |
+          cmake -B build-msvc-x86 --preset windows-msvc-x86 `
+            -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}"
+
+      - name: Build
+        run: cmake --build build-msvc-x86 --config Release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctr_native-windows-${{ steps.ver.outputs.version }}
+          path: build-msvc-x86/Release/ctr_native.exe
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────────
+  build-linux:
+    name: Build (Linux x86 / GCC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-multilib \
+            libx11-dev:i386 libxext-dev:i386 \
+            libgl1-mesa-dev:i386 \
+            libasound2-dev:i386 \
+            libudev-dev:i386 \
+            libdbus-1-dev:i386
+
+      - name: Set version
+        id: ver
+        run: |
+          TAG="${{ github.event.inputs.release_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="$(git describe --tags --always --dirty 2>/dev/null || echo 'dev')"
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Configure
+        run: |
+          cmake -B build-linux \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}"
+
+      - name: Build
+        run: cmake --build build-linux --parallel $(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctr_native-linux-${{ steps.ver.outputs.version }}
+          path: build-linux/ctr_native
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────────
+  release:
+    name: Publish release
+    needs: [ build-windows, build-linux ]
+    if: ${{ github.event.inputs.release_tag != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ctr_native-*
+          merge-multiple: false
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: "CTR Native ${{ github.event.inputs.release_tag }}"
+          body: |
+            ## CTR Native – PC Release
+
+            Requires an NTSC-U Crash Team Racing disc image (`ctr-u.bin`)
+            placed in the `assets/` folder next to the executable.
+
+            **Build ID:** `${{ github.sha }}`
+          files: |
+            dist/ctr_native-windows-*/ctr_native.exe
+            dist/ctr_native-linux-*/ctr_native
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
