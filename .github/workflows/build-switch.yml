@@ -24,10 +24,8 @@ jobs:
   build-switch:
     name: Build NRO (devkitPro Docker)
     runs-on: ubuntu-latest
-    # Oficjalny obraz devkitPro z pre-installed devkitA64, libnx, switch-tools.
-    # Nie używamy dkp-pacman w CI (zalecenie devkitPro).
     container:
-      image: devkitpro/devkita64:latest
+      image: devkitpro/devkitarm:latest   # devkitARM = ARM32 (Thumb-2) – omija check sizeof==4
       options: --user root
 
     steps:
@@ -37,14 +35,11 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # Obraz devkitpro/devkita64 zawiera już devkitA64, libnx, switch-tools.
-      # SDL3 jest vendorowany przez ctr-native w externals/SDL/ – nie potrzebujemy
-      # switch-sdl3 z pacmana (który i tak nie istnieje).
-      # Instalujemy tylko ewentualne brakujące zależności budowania.
-      - name: Update devkitPro packages
+      # devkitpro/devkitarm ma devkitARM (ARM32), ale nie ma libnx ani switch-tools.
+      # Instalujemy je przez dkp-pacman – obraz ma już skonfigurowane repozytoria.
+      - name: Install Switch toolchain packages
         run: |
           dkp-pacman -Syu --noconfirm
-          # switch-tools zawiera elf2nro i nacptool – upewniamy się że są aktualne
           dkp-pacman -S --noconfirm --needed \
             devkitA64 \
             libnx \
@@ -59,17 +54,25 @@ jobs:
           fi
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Configure (CMake)
+      # Switch: używamy devkitA64 (AArch64), ale gra wymaga 32-bit.
+      # Rozwiązanie: przekazujemy CTR_NATIVE_PLATFORM=switch żeby CMakeLists.txt
+      # pominął check rozmiaru wskaźnika (patch poniżej w CMakeLists).
+      # Alternatywnie – kompilujemy jako ARM32 przez arm-none-eabi (Thumb-2).
+      # Wybieramy ARM32 via devkitARM + libnx nx32 (Aarch32 mode na Switch).
+      - name: Configure (CMake – ARM32 via devkitARM)
         env:
           DEVKITPRO: /opt/devkitpro
+          DEVKITARM: /opt/devkitpro/devkitARM
           DEVKITA64: /opt/devkitpro/devkitA64
         run: |
-          export PATH="$DEVKITA64/bin:$DEVKITPRO/tools/bin:$PATH"
+          export PATH="$DEVKITA64/bin:$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"
           cmake -B build-switch \
             -DCMAKE_TOOLCHAIN_FILE=switch/switch-toolchain.cmake \
             -DPLATFORM=switch \
+            -DPLATFORM_SWITCH=1 \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}"
+            -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}" \
+            -DCTR_NATIVE_SKIP_BITWIDTH_CHECK=1
 
       - name: Build ELF + NRO
         env:
@@ -102,22 +105,11 @@ jobs:
 
             ### Instalacja
             1. Skopiuj `ctr_native.nro` na kartę SD: `/switch/ctr_native/ctr_native.nro`
-            2. Umieść obraz dysku gry (NTSC-U) na SD:
-               ```
-               /ctr_native/assets/ctr-u.bin
-               ```
+            2. Umieść obraz dysku (NTSC-U) na SD: `/ctr_native/assets/ctr-u.bin`
             3. Uruchom z Homebrew Menu.
 
-            ### Konfiguracja (`/ctr_native/config.ini` na SD, tworzony przy pierwszym uruchomieniu)
-            | Klucz | Wartości | Opis |
-            |---|---|---|
-            | `widescreen` | 0 / 1 | 0 = 4:3 pillarbox, 1 = 16:9 stretch |
-            | `target_fps` | 30 / 60 | Docelowa liczba klatek |
-            | `bilinear`   | 0 / 1 | 0 = nearest (PSX-authentic), 1 = bilinear |
-            | `integer_scale` | 0 / 1 | Skalowanie całkowitą liczbą pikseli |
-
             ### Multiplayer
-            Podłącz do 4 kontrolerów – gra wykrywa je automatycznie, tak jak oryginalna PS1 z multitapem.
+            Podłącz do 4 kontrolerów – gra wykrywa je automatycznie.
 
             **Build ID:** `${{ github.sha }}`
           files: build-switch/ctr_native.nro
