@@ -1,0 +1,53 @@
+{
+  "$schema": "https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html",
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+
+  "configurePresets": [
+    {
+      "name": "switch-arm64",
+      "displayName": "Nintendo Switch (devkitA64)",
+      "description": "ARM64 NRO homebrew via devkitPro",
+      "toolchainFile": "${sourceDir}/switch/switch-toolchain.cmake",
+      "binaryDir": "${sourceDir}/build-switch",
+      "cacheVariables": {
+        "PLATFORM":               "switch",
+        "CMAKE_BUILD_TYPE":       "Release",
+        "CTR_NATIVE_VERSION":     "dev"
+      }
+    },
+    {
+      "name": "vita-arm",
+      "displayName": "PlayStation Vita (vitasdk)",
+      "description": "ARM Cortex-A9 VPK via vitasdk + VitaGL",
+      "toolchainFile": "$env{VITASDK}/share/vita.toolchain.cmake",
+      "binaryDir": "${sourceDir}/build-vita",
+      "cacheVariables": {
+        "PLATFORM":               "vita",
+        "CMAKE_BUILD_TYPE":       "Release",
+        "CTR_NATIVE_VERSION":     "dev"
+      }
+    }
+  ],
+
+  "buildPresets": [
+    {
+      "name": "switch-arm64-release",
+      "displayName": "Switch Release",
+      "configurePreset": "switch-arm64",
+      "configuration": "Release",
+      "targets": [ "nro" ]
+    },
+    {
+      "name": "vita-arm-release",
+      "displayName": "Vita Release",
+      "configurePreset": "vita-arm",
+      "configuration": "Release",
+      "targets": [ "vpk" ]
+    }
+  ]
+}
