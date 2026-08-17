@@ -24,9 +24,6 @@ jobs:
   build-vita:
     name: Build VPK (vitasdk Docker)
     runs-on: ubuntu-latest
-    # Oficjalny obraz vitasdk – $VITASDK i PATH już ustawione wewnątrz.
-    # Obraz: vitasdk/vitasdk:latest (multi-arch: amd64 + arm64, ~1.6 GB).
-    # Jeśli rozmiar jest problemem: vitasdk/vitasdk:latest-minimal (~764 MB).
     container:
       image: vitasdk/vitasdk:latest
       options: --user root
@@ -38,19 +35,12 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # VitaGL buduje się przez `make install`, NIE przez cmake.
-      # Repozytorium: https://github.com/Rinnegatamante/vitaGL
-      # Wymagania: vitasdk (dostarczone przez obraz), make, git (dostarczone przez obraz).
+      # VitaGL: buduje się przez `make install`, NIE cmake.
       - name: Install VitaGL
         run: |
           git clone --depth 1 https://github.com/Rinnegatamante/vitaGL.git /tmp/vitaGL
           cd /tmp/vitaGL
-          # USE_SHARK=1 – włącza vitashark (wymagany dla GLSL shaderów w VitaGL)
-          # HAVE_UNFLIPPED_FBOS=1 – poprawia orientację FBO (ważne dla naszego blitu)
-          make install \
-            USE_SHARK=1 \
-            HAVE_UNFLIPPED_FBOS=1 \
-            -j$(nproc)
+          make install USE_SHARK=1 HAVE_UNFLIPPED_FBOS=1 -j$(nproc)
 
       - name: Set version
         id: ver
@@ -61,15 +51,21 @@ jobs:
           fi
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Configure (CMake)
+      # Vita CMake używa oddzielnego CMakeLists_vita.cmake, nie głównego CMakeLists.txt.
+      # Główny CMakeLists.txt jest tylko dla PC (zawiera check 32-bit który przejdzie
+      # na Vicie – ARM32 – ale nie definiuje targetu `vpk`).
+      # Wywołujemy cmake bezpośrednio na vita/CMakeLists_vita.cmake.
+      - name: Configure (CMake – vita/CMakeLists_vita.cmake)
         run: |
           cmake -B build-vita \
+            -S vita \
             -DCMAKE_TOOLCHAIN_FILE="$VITASDK/share/vita.toolchain.cmake" \
-            -DPLATFORM=vita \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}"
+            -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}" \
+            -G "Unix Makefiles"
 
-      - name: Build ELF + VPK
+      # Teraz target `vpk` jest zdefiniowany bezpośrednio w vita/CMakeLists_vita.cmake
+      - name: Build VPK
         run: cmake --build build-vita --parallel $(nproc) --target vpk
 
       - name: Verify VPK
@@ -95,18 +91,8 @@ jobs:
 
             ### Instalacja
             1. Prześlij `ctr_native.vpk` na Vitę przez VitaShell lub FTP.
-            2. Zainstaluj VPK z VitaShell.
-            3. Umieść obraz dysku gry (NTSC-U):
-               ```
-               ux0:/data/ctr_native/assets/ctr-u.bin
-               ```
-
-            ### Konfiguracja (`ux0:/data/ctr_native/config.ini`, tworzony przy pierwszym uruchomieniu)
-            | Klucz | Wartości | Opis |
-            |---|---|---|
-            | `widescreen` | 0 / 1 | 0 = 4:3 pillarbox (domyślnie), 1 = 16:9 stretch |
-            | `target_fps` | 30 / 60 | Docelowa liczba klatek |
-            | `bilinear`   | 0 / 1 | 0 = nearest (PSX-authentic), 1 = bilinear |
+            2. Zainstaluj VPK.
+            3. Umieść obraz dysku: `ux0:/data/ctr_native/assets/ctr-u.bin`
 
             **Build ID:** `${{ github.sha }}`
           files: build-vita/ctr_native.vpk
