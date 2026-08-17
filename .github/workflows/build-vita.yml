@@ -1,0 +1,118 @@
+name: Build – PlayStation Vita (VPK)
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'platform/**'
+      - 'game/**'
+      - 'include/**'
+      - 'vita/**'
+      - 'main.c'
+      - 'CMakeLists.txt'
+      - '.github/workflows/build-vita.yml'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (leave empty for CI-only build)'
+        required: false
+        default: ''
+
+jobs:
+  build-vita:
+    name: Build VPK (vitasdk)
+    runs-on: ubuntu-latest
+    container:
+      image: vitasdk/vitasdk:latest
+      options: --user root
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      # vitaGL must be compiled from source and installed to the vitasdk sysroot
+      - name: Install vitaGL
+        run: |
+          export VITASDK=/usr/local/vitasdk
+          export PATH="$VITASDK/bin:$PATH"
+          git clone --depth 1 https://github.com/Rinnegatamante/vitaGL.git /tmp/vitaGL
+          cmake -B /tmp/vitaGL/build -S /tmp/vitaGL \
+            -DCMAKE_TOOLCHAIN_FILE="$VITASDK/share/vita.toolchain.cmake" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_SHARK=1
+          cmake --build /tmp/vitaGL/build --parallel $(nproc)
+          cmake --install /tmp/vitaGL/build
+
+      - name: Set version
+        id: ver
+        run: |
+          TAG="${{ github.event.inputs.release_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="$(git describe --tags --always --dirty 2>/dev/null || echo 'dev')"
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Configure (CMake)
+        env:
+          VITASDK: /usr/local/vitasdk
+        run: |
+          cmake -B build-vita \
+            -DCMAKE_TOOLCHAIN_FILE="$VITASDK/share/vita.toolchain.cmake" \
+            -DPLATFORM=vita \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}"
+
+      - name: Build ELF + VPK
+        env:
+          VITASDK: /usr/local/vitasdk
+        run: cmake --build build-vita --parallel $(nproc) --target vpk
+
+      - name: Verify VPK
+        run: |
+          ls -lh build-vita/ctr_native.vpk
+          file build-vita/ctr_native.vpk
+
+      - name: Upload VPK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctr_native-vita-${{ steps.ver.outputs.version }}
+          path: build-vita/ctr_native.vpk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.release_tag != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: "CTR Native ${{ github.event.inputs.release_tag }} – PS Vita"
+          body: |
+            ## CTR Native – PlayStation Vita
+
+            ### Installation
+            1. Transfer `ctr_native.vpk` to your Vita via VitaShell or FTP.
+            2. Install the VPK from VitaShell.
+            3. Place your NTSC-U CTR disc image on the Vita:
+               ```
+               ux0:/data/ctr_native/assets/ctr-u.bin
+               ```
+               or extracted assets in `ux0:/data/ctr_native/assets/`.
+
+            ### Configuration
+            Edit `ux0:/data/ctr_native/config.ini` (created on first launch):
+            | Key | Values | Description |
+            |---|---|---|
+            | `widescreen` | 0 / 1 | 0 = 4:3 pillarbox (default), 1 = 16:9 stretch |
+            | `target_fps` | 30 / 60 | Frame rate target |
+            | `bilinear`   | 0 / 1 | 0 = PSX-authentic nearest, 1 = bilinear filter |
+
+            **Build ID:** `${{ github.sha }}`
+          files: build-vita/ctr_native.vpk
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,129 @@
+name: Build – Nintendo Switch (NRO)
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'platform/**'
+      - 'game/**'
+      - 'include/**'
+      - 'switch/**'
+      - 'main.c'
+      - 'CMakeLists.txt'
+      - '.github/workflows/build-switch.yml'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (leave empty for CI-only build)'
+        required: false
+        default: ''
+
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  build-switch:
+    name: Build NRO (devkitPro)
+    # devkitPro provides an official Docker image with all Switch toolchains.
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkita64:latest   # ARM64 / Switch toolchain
+      options: --user root
+
+    steps:
+      # ── 1. Checkout ─────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      # ── 2. Install extra Switch packages ────────────────────────────────────
+      - name: Install switch-sdl3 and switch-tools
+        run: |
+          dkp-pacman -Sy --noconfirm \
+            switch-sdl3 \
+            switch-tools \
+            devkitA64
+
+      # ── 3. Derive version string ─────────────────────────────────────────────
+      - name: Set version
+        id: ver
+        run: |
+          TAG="${{ github.event.inputs.release_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="$(git describe --tags --always --dirty 2>/dev/null || echo 'dev')"
+          fi
+          echo "version=$TAG" >> "$GITHUB_OUTPUT"
+
+      # ── 4. CMake configure ───────────────────────────────────────────────────
+      - name: Configure (CMake)
+        env:
+          DEVKITPRO: /opt/devkitpro
+          DEVKITA64: /opt/devkitpro/devkitA64
+        run: |
+          cmake -B build-switch \
+            -DCMAKE_TOOLCHAIN_FILE=switch/switch-toolchain.cmake \
+            -DPLATFORM=switch \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}"
+
+      # ── 5. Build ─────────────────────────────────────────────────────────────
+      - name: Build ELF + NRO
+        env:
+          DEVKITPRO: /opt/devkitpro
+          DEVKITA64: /opt/devkitpro/devkitA64
+        run: cmake --build build-switch --parallel $(nproc) --target nro
+
+      # ── 6. Verify output exists ──────────────────────────────────────────────
+      - name: Verify NRO
+        run: |
+          ls -lh build-switch/ctr_native.nro
+          file build-switch/ctr_native.nro
+
+      # ── 7. Upload artifact (every CI build) ─────────────────────────────────
+      - name: Upload NRO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctr_native-switch-${{ steps.ver.outputs.version }}
+          path: build-switch/ctr_native.nro
+          retention-days: 30
+
+      # ── 8. GitHub Release (only when release_tag is provided) ───────────────
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.release_tag != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: "CTR Native ${{ github.event.inputs.release_tag }} – Switch"
+          body: |
+            ## CTR Native – Nintendo Switch
+
+            ### Installation
+            1. Copy `ctr_native.nro` to `/switch/ctr_native/ctr_native.nro` on your SD card.
+            2. Place your NTSC-U CTR disc image on the SD card:
+               ```
+               /ctr_native/assets/ctr-u.bin
+               ```
+               or extracted assets in `/ctr_native/assets/`.
+            3. Launch from the Homebrew Menu.
+
+            ### Configuration
+            Edit `/ctr_native/config.ini` on the SD card (created on first launch):
+            | Key | Values | Description |
+            |---|---|---|
+            | `widescreen` | 0 / 1 | 0 = 4:3 pillarbox, 1 = 16:9 stretch |
+            | `target_fps` | 30 / 60 | Frame rate target |
+            | `bilinear`   | 0 / 1 | 0 = PSX-authentic nearest, 1 = bilinear |
+            | `integer_scale` | 0 / 1 | Integer pixel scaling |
+
+            ### Multiplayer
+            Connect up to 4 controllers. The game detects additional pads automatically
+            (same as the original PS1 multitap behaviour).
+
+            **Build ID:** `${{ github.sha }}`
+          files: build-switch/ctr_native.nro
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
