@@ -6,6 +6,7 @@
     "patch": 0
   },
   "configurePresets": [
+
     {
       "name": "common",
       "hidden": true,
@@ -14,6 +15,7 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
+
     {
       "name": "windows-msvc-x86",
       "displayName": "Windows MSVC x86",
@@ -33,6 +35,7 @@
         }
       }
     },
+
     {
       "name": "windows-mingw-i686-debug",
       "displayName": "Windows MinGW i686 Debug",
@@ -50,11 +53,12 @@
         }
       },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_COMPILER": "i686-w64-mingw32-gcc",
+        "CMAKE_BUILD_TYPE":   "Debug",
+        "CMAKE_C_COMPILER":   "i686-w64-mingw32-gcc",
         "CMAKE_MAKE_PROGRAM": "mingw32-make"
       }
     },
+
     {
       "name": "windows-mingw-i686-release",
       "displayName": "Windows MinGW i686 Release",
@@ -72,11 +76,12 @@
         }
       },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_C_COMPILER": "i686-w64-mingw32-gcc",
+        "CMAKE_BUILD_TYPE":   "Release",
+        "CMAKE_C_COMPILER":   "i686-w64-mingw32-gcc",
         "CMAKE_MAKE_PROGRAM": "mingw32-make"
       }
     },
+
     {
       "name": "linux-gcc-i686-debug",
       "displayName": "Linux GCC i686 Debug",
@@ -89,12 +94,13 @@
         "rhs": "Linux"
       },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_C_COMPILER": "gcc",
-        "CMAKE_C_FLAGS": "-m32",
-        "CMAKE_EXE_LINKER_FLAGS": "-m32"
+        "CMAKE_BUILD_TYPE":        "Debug",
+        "CMAKE_C_COMPILER":        "gcc",
+        "CMAKE_C_FLAGS":           "-m32",
+        "CMAKE_EXE_LINKER_FLAGS":  "-m32"
       }
     },
+
     {
       "name": "linux-gcc-i686-release",
       "displayName": "Linux GCC i686 Release",
@@ -107,14 +113,47 @@
         "rhs": "Linux"
       },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_C_COMPILER": "gcc",
-        "CMAKE_C_FLAGS": "-m32",
-        "CMAKE_EXE_LINKER_FLAGS": "-m32"
+        "CMAKE_BUILD_TYPE":        "Release",
+        "CMAKE_C_COMPILER":        "gcc",
+        "CMAKE_C_FLAGS":           "-m32",
+        "CMAKE_EXE_LINKER_FLAGS":  "-m32"
+      }
+    },
+
+    {
+      "name": "switch-arm64",
+      "displayName": "Nintendo Switch (devkitA64)",
+      "description": "AArch64 NRO homebrew via devkitPro/libnx + SDL3. Requires DEVKITPRO env variable. Install switch-sdl3 and switch-tools via dkp-pacman.",
+      "generator": "Unix Makefiles",
+      "toolchainFile": "${sourceDir}/switch/switch-toolchain.cmake",
+      "binaryDir": "${sourceDir}/build-switch",
+      "cacheVariables": {
+        "PLATFORM":                    "switch",
+        "CMAKE_BUILD_TYPE":            "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CTR_NATIVE_VERSION":          "dev"
+      }
+    },
+
+    {
+      "name": "vita-arm",
+      "displayName": "PlayStation Vita (vitasdk + VitaGL)",
+      "description": "ARM Cortex-A9 VPK via vitasdk + VitaGL. Requires VITASDK env variable (/usr/local/vitasdk) with VitaGL installed in the sysroot.",
+      "generator": "Unix Makefiles",
+      "toolchainFile": "$env{VITASDK}/share/vita.toolchain.cmake",
+      "binaryDir": "${sourceDir}/build-vita",
+      "cacheVariables": {
+        "PLATFORM":                    "vita",
+        "CMAKE_BUILD_TYPE":            "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CTR_NATIVE_VERSION":          "dev"
       }
     }
+
   ],
+
   "buildPresets": [
+
     {
       "name": "windows-msvc-x86-debug",
       "configurePreset": "windows-msvc-x86",
@@ -140,9 +179,26 @@
     {
       "name": "linux-gcc-i686-release",
       "configurePreset": "linux-gcc-i686-release"
+    },
+    {
+      "name": "switch-arm64-release",
+      "displayName": "Nintendo Switch — Release NRO",
+      "configurePreset": "switch-arm64",
+      "configuration": "Release",
+      "targets": [ "nro" ]
+    },
+    {
+      "name": "vita-arm-release",
+      "displayName": "PlayStation Vita — Release VPK",
+      "configurePreset": "vita-arm",
+      "configuration": "Release",
+      "targets": [ "vpk" ]
     }
+
   ],
+
   "testPresets": [
+
     {
       "name": "windows-msvc-x86-debug",
       "configurePreset": "windows-msvc-x86",
@@ -187,5 +243,6 @@
         "outputOnFailure": true
       }
     }
+
   ]
 }
