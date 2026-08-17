@@ -20,33 +20,36 @@ on:
         required: false
         default: ''
 
-# ─────────────────────────────────────────────────────────────────────────────
 jobs:
   build-switch:
-    name: Build NRO (devkitPro)
-    # devkitPro provides an official Docker image with all Switch toolchains.
+    name: Build NRO (devkitPro Docker)
     runs-on: ubuntu-latest
+    # Oficjalny obraz devkitPro z pre-installed devkitA64, libnx, switch-tools.
+    # Nie używamy dkp-pacman w CI (zalecenie devkitPro).
     container:
-      image: devkitpro/devkita64:latest   # ARM64 / Switch toolchain
+      image: devkitpro/devkita64:latest
       options: --user root
 
     steps:
-      # ── 1. Checkout ─────────────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
-      # ── 2. Install extra Switch packages ────────────────────────────────────
-      - name: Install switch-sdl3 and switch-tools
+      # Obraz devkitpro/devkita64 zawiera już devkitA64, libnx, switch-tools.
+      # SDL3 jest vendorowany przez ctr-native w externals/SDL/ – nie potrzebujemy
+      # switch-sdl3 z pacmana (który i tak nie istnieje).
+      # Instalujemy tylko ewentualne brakujące zależności budowania.
+      - name: Update devkitPro packages
         run: |
-          dkp-pacman -Sy --noconfirm \
-            switch-sdl3 \
-            switch-tools \
-            devkitA64
+          dkp-pacman -Syu --noconfirm
+          # switch-tools zawiera elf2nro i nacptool – upewniamy się że są aktualne
+          dkp-pacman -S --noconfirm --needed \
+            devkitA64 \
+            libnx \
+            switch-tools
 
-      # ── 3. Derive version string ─────────────────────────────────────────────
       - name: Set version
         id: ver
         run: |
@@ -56,32 +59,31 @@ jobs:
           fi
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
 
-      # ── 4. CMake configure ───────────────────────────────────────────────────
       - name: Configure (CMake)
         env:
           DEVKITPRO: /opt/devkitpro
           DEVKITA64: /opt/devkitpro/devkitA64
         run: |
+          export PATH="$DEVKITA64/bin:$DEVKITPRO/tools/bin:$PATH"
           cmake -B build-switch \
             -DCMAKE_TOOLCHAIN_FILE=switch/switch-toolchain.cmake \
             -DPLATFORM=switch \
             -DCMAKE_BUILD_TYPE=Release \
             -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}"
 
-      # ── 5. Build ─────────────────────────────────────────────────────────────
       - name: Build ELF + NRO
         env:
           DEVKITPRO: /opt/devkitpro
           DEVKITA64: /opt/devkitpro/devkitA64
-        run: cmake --build build-switch --parallel $(nproc) --target nro
+        run: |
+          export PATH="$DEVKITA64/bin:$DEVKITPRO/tools/bin:$PATH"
+          cmake --build build-switch --parallel $(nproc) --target nro
 
-      # ── 6. Verify output exists ──────────────────────────────────────────────
       - name: Verify NRO
         run: |
           ls -lh build-switch/ctr_native.nro
           file build-switch/ctr_native.nro
 
-      # ── 7. Upload artifact (every CI build) ─────────────────────────────────
       - name: Upload NRO artifact
         uses: actions/upload-artifact@v4
         with:
@@ -89,37 +91,33 @@ jobs:
           path: build-switch/ctr_native.nro
           retention-days: 30
 
-      # ── 8. GitHub Release (only when release_tag is provided) ───────────────
       - name: Create GitHub Release
         if: ${{ github.event.inputs.release_tag != '' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
-          name: "CTR Native ${{ github.event.inputs.release_tag }} – Switch"
+          name: "CTR Native ${{ github.event.inputs.release_tag }} – Nintendo Switch"
           body: |
             ## CTR Native – Nintendo Switch
 
-            ### Installation
-            1. Copy `ctr_native.nro` to `/switch/ctr_native/ctr_native.nro` on your SD card.
-            2. Place your NTSC-U CTR disc image on the SD card:
+            ### Instalacja
+            1. Skopiuj `ctr_native.nro` na kartę SD: `/switch/ctr_native/ctr_native.nro`
+            2. Umieść obraz dysku gry (NTSC-U) na SD:
                ```
                /ctr_native/assets/ctr-u.bin
                ```
-               or extracted assets in `/ctr_native/assets/`.
-            3. Launch from the Homebrew Menu.
+            3. Uruchom z Homebrew Menu.
 
-            ### Configuration
-            Edit `/ctr_native/config.ini` on the SD card (created on first launch):
-            | Key | Values | Description |
+            ### Konfiguracja (`/ctr_native/config.ini` na SD, tworzony przy pierwszym uruchomieniu)
+            | Klucz | Wartości | Opis |
             |---|---|---|
             | `widescreen` | 0 / 1 | 0 = 4:3 pillarbox, 1 = 16:9 stretch |
-            | `target_fps` | 30 / 60 | Frame rate target |
-            | `bilinear`   | 0 / 1 | 0 = PSX-authentic nearest, 1 = bilinear |
-            | `integer_scale` | 0 / 1 | Integer pixel scaling |
+            | `target_fps` | 30 / 60 | Docelowa liczba klatek |
+            | `bilinear`   | 0 / 1 | 0 = nearest (PSX-authentic), 1 = bilinear |
+            | `integer_scale` | 0 / 1 | Skalowanie całkowitą liczbą pikseli |
 
             ### Multiplayer
-            Connect up to 4 controllers. The game detects additional pads automatically
-            (same as the original PS1 multitap behaviour).
+            Podłącz do 4 kontrolerów – gra wykrywa je automatycznie, tak jak oryginalna PS1 z multitapem.
 
             **Build ID:** `${{ github.sha }}`
           files: build-switch/ctr_native.nro
