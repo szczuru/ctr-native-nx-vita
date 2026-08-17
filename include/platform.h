@@ -32,3 +32,4 @@ int NikoGetEnterKey(void);
 #endif
 
 #endif
+#include "platform_ports.h"
