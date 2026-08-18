@@ -25,7 +25,7 @@ jobs:
     name: Build NRO (devkitPro Docker)
     runs-on: ubuntu-latest
     container:
-      image: devkitpro/devkitarm:latest   # devkitARM = ARM32 (Thumb-2) – omija check sizeof==4
+      image: devkitpro/devkita64:latest
       options: --user root
 
     steps:
@@ -35,15 +35,10 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # devkitpro/devkitarm ma devkitARM (ARM32), ale nie ma libnx ani switch-tools.
-      # Instalujemy je przez dkp-pacman – obraz ma już skonfigurowane repozytoria.
-      - name: Install Switch toolchain packages
+      - name: Update Switch packages
         run: |
           dkp-pacman -Syu --noconfirm
-          dkp-pacman -S --noconfirm --needed \
-            devkitA64 \
-            libnx \
-            switch-tools
+          dkp-pacman -S --noconfirm --needed devkitA64 libnx switch-tools
 
       - name: Set version
         id: ver
@@ -54,25 +49,23 @@ jobs:
           fi
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
 
-      # Switch: używamy devkitA64 (AArch64), ale gra wymaga 32-bit.
-      # Rozwiązanie: przekazujemy CTR_NATIVE_PLATFORM=switch żeby CMakeLists.txt
-      # pominął check rozmiaru wskaźnika (patch poniżej w CMakeLists).
-      # Alternatywnie – kompilujemy jako ARM32 przez arm-none-eabi (Thumb-2).
-      # Wybieramy ARM32 via devkitARM + libnx nx32 (Aarch32 mode na Switch).
-      - name: Configure (CMake – ARM32 via devkitARM)
+      # CMakeLists_switch.cmake → switch/CMakeLists.txt
+      # cmake wymaga dokładnie pliku CMakeLists.txt gdy używamy -S <dir>
+      - name: Prepare switch/CMakeLists.txt
+        run: cp switch/CMakeLists_switch.cmake switch/CMakeLists.txt
+
+      - name: Configure (CMake)
         env:
           DEVKITPRO: /opt/devkitpro
-          DEVKITARM: /opt/devkitpro/devkitARM
           DEVKITA64: /opt/devkitpro/devkitA64
         run: |
-          export PATH="$DEVKITA64/bin:$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"
+          export PATH="$DEVKITA64/bin:$DEVKITPRO/tools/bin:$PATH"
           cmake -B build-switch \
-            -DCMAKE_TOOLCHAIN_FILE=switch/switch-toolchain.cmake \
-            -DPLATFORM=switch \
-            -DPLATFORM_SWITCH=1 \
+            -S switch \
+            -DCMAKE_TOOLCHAIN_FILE="${PWD}/switch/switch-toolchain.cmake" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}" \
-            -DCTR_NATIVE_SKIP_BITWIDTH_CHECK=1
+            -DCTR_SOURCE_DIR="${PWD}"
 
       - name: Build ELF + NRO
         env:
@@ -83,9 +76,7 @@ jobs:
           cmake --build build-switch --parallel $(nproc) --target nro
 
       - name: Verify NRO
-        run: |
-          ls -lh build-switch/ctr_native.nro
-          file build-switch/ctr_native.nro
+        run: ls -lh build-switch/ctr_native.nro
 
       - name: Upload NRO artifact
         uses: actions/upload-artifact@v4
@@ -104,8 +95,8 @@ jobs:
             ## CTR Native – Nintendo Switch
 
             ### Instalacja
-            1. Skopiuj `ctr_native.nro` na kartę SD: `/switch/ctr_native/ctr_native.nro`
-            2. Umieść obraz dysku (NTSC-U) na SD: `/ctr_native/assets/ctr-u.bin`
+            1. Skopiuj `ctr_native.nro` na SD: `/switch/ctr_native/ctr_native.nro`
+            2. Obraz dysku (NTSC-U): `/ctr_native/assets/ctr-u.bin`
             3. Uruchom z Homebrew Menu.
 
             ### Multiplayer
