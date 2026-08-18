@@ -1,12 +1,11 @@
-# CMakeLists.txt dla PlayStation Vita (vitasdk + VitaGL)
-# Plik docelowy: vita/CMakeLists.txt
+# vita/CMakeLists.txt (kopiowany z CMakeLists_vita.cmake przez workflow)
 #
-# WAŻNE: cmake wywoływany jest z -S vita, więc CMAKE_SOURCE_DIR = vita/
-# Katalog główny repozytorium przekazywany jest przez -DCTR_SOURCE_DIR=<root>
+# Identyczny wzorzec jak Switch: kompilujemy upstream main.c
+# + Vita-specyficzne backendy platformy.
 #
-# Użycie:
-#   cmake -B build-vita -S vita \
-#         -DCMAKE_TOOLCHAIN_FILE=$VITASDK/share/vita.toolchain.cmake \
+# Wywoływany z:
+#   cmake -B build-vita -S vita
+#         -DCMAKE_TOOLCHAIN_FILE=$VITASDK/share/vita.toolchain.cmake
 #         -DCTR_SOURCE_DIR=$(pwd)
 
 cmake_minimum_required(VERSION 3.20)
@@ -17,20 +16,23 @@ if(NOT DEFINED CTR_SOURCE_DIR)
     set(CTR_SOURCE_DIR "${CMAKE_SOURCE_DIR}/..")
 endif()
 get_filename_component(CTR_SOURCE_DIR "${CTR_SOURCE_DIR}" ABSOLUTE)
-
 message(STATUS "CTR source root: ${CTR_SOURCE_DIR}")
 
-# ── Flagi kompilacji ───────────────────────────────────────────────────────────
+if(NOT DEFINED ENV{VITASDK})
+    message(FATAL_ERROR "VITASDK environment variable is not set.")
+endif()
+set(VITASDK $ENV{VITASDK})
+
+# ── Flagi ─────────────────────────────────────────────────────────────────────
 add_compile_options(
+    -mcpu=cortex-a9
+    -mfpu=neon
     -O2
     -ffunction-sections
     -fdata-sections
     -Wall
     -Wno-unused-function
     -Wno-strict-aliasing
-    -mcpu=cortex-a9
-    -mfpu=neon
-    # Identyfikacja platformy
     -DPLATFORM_VITA
     -DCTR_NATIVE
     -DCTR_INTERNAL
@@ -41,53 +43,22 @@ include_directories(
     ${CTR_SOURCE_DIR}
     ${CTR_SOURCE_DIR}/include
     ${CTR_SOURCE_DIR}/platform
-    ${CMAKE_SOURCE_DIR}          # vita/ – nagłówki specyficzne dla platformy
-    $ENV{VITASDK}/arm-vita-eabi/include
-    $ENV{VITASDK}/arm-vita-eabi/include/vitaGL
+    ${CTR_SOURCE_DIR}/game
+    ${CMAKE_SOURCE_DIR}
+    ${VITASDK}/arm-vita-eabi/include
+    ${VITASDK}/arm-vita-eabi/include/vitaGL
 )
 
 # ── Źródła ────────────────────────────────────────────────────────────────────
-set(VITA_SOURCES
-    ${CMAKE_SOURCE_DIR}/main_vita.c
+add_executable(ctr_native_vita.elf
+    # Upstream entry point (unity include manifest)
+    ${CTR_SOURCE_DIR}/main.c
 
+    # Vita-specyficzne backendy platformy
     ${CTR_SOURCE_DIR}/platform/native_platform_vita.c
     ${CTR_SOURCE_DIR}/platform/native_renderer_vita.c
     ${CTR_SOURCE_DIR}/platform/native_libpad_vita.c
-
-    ${CTR_SOURCE_DIR}/platform/native_assets.c
-    ${CTR_SOURCE_DIR}/platform/native_audio.c
-    ${CTR_SOURCE_DIR}/platform/native_memory.c
-    ${CTR_SOURCE_DIR}/platform/native_checkpoint.c
-    ${CTR_SOURCE_DIR}/platform/native_checkpoint_file.c
-    ${CTR_SOURCE_DIR}/platform/native_cd.c
-    ${CTR_SOURCE_DIR}/platform/native_disc_image.c
-    ${CTR_SOURCE_DIR}/platform/native_gpu_links.c
-    ${CTR_SOURCE_DIR}/platform/native_gpu.c
-    ${CTR_SOURCE_DIR}/platform/native_gte_core.c
-    ${CTR_SOURCE_DIR}/platform/native_inline_c.c
-    ${CTR_SOURCE_DIR}/platform/native_libapi.c
-    ${CTR_SOURCE_DIR}/platform/native_libetc.c
-    ${CTR_SOURCE_DIR}/platform/native_libgte.c
-    ${CTR_SOURCE_DIR}/platform/native_libgpu.c
-    ${CTR_SOURCE_DIR}/platform/native_libspu.c
-    ${CTR_SOURCE_DIR}/platform/native_log.c
-    ${CTR_SOURCE_DIR}/platform/native_memcard.c
-    ${CTR_SOURCE_DIR}/platform/native_memcard_adapter.c
-    ${CTR_SOURCE_DIR}/platform/native_perf.c
-    ${CTR_SOURCE_DIR}/platform/native_platform.c
-    ${CTR_SOURCE_DIR}/platform/native_replay_scheduler.c
-    ${CTR_SOURCE_DIR}/platform/native_renderer.c
-    ${CTR_SOURCE_DIR}/platform/native_savestate.c
-    ${CTR_SOURCE_DIR}/platform/native_state.c
-    ${CTR_SOURCE_DIR}/platform/native_str.c
-
-    ${CTR_SOURCE_DIR}/game/game_unity.c
-    ${CTR_SOURCE_DIR}/game/zGlobal_RDATA.c
-    ${CTR_SOURCE_DIR}/game/zGlobal_DATA.c
-    ${CTR_SOURCE_DIR}/game/zGlobal_SDATA.c
 )
-
-add_executable(ctr_native_vita.elf ${VITA_SOURCES})
 
 target_compile_definitions(ctr_native_vita.elf PRIVATE
     CTR_NATIVE_VERSION=\"${CTR_NATIVE_VERSION}\"
@@ -114,11 +85,9 @@ target_link_libraries(ctr_native_vita.elf
     c
 )
 
-# ── vita-make-fself + vita-pack-vpk ───────────────────────────────────────────
+# ── Pakowanie VPK ─────────────────────────────────────────────────────────────
 set(VITA_TITLEID "CTRNATIV0")
 set(VITA_VERSION "01.00")
-
-set(VITASDK $ENV{VITASDK})
 
 add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/ctr_native_vita.velf
@@ -160,9 +129,7 @@ add_custom_command(
             --add ${CMAKE_SOURCE_DIR}/sce_sys/livearea/contents/startup.png=sce_sys/livearea/contents/startup.png
             --add ${CMAKE_SOURCE_DIR}/sce_sys/livearea/contents/template.xml=sce_sys/livearea/contents/template.xml
             ${VPK_OUTPUT}
-    DEPENDS
-        ${CMAKE_BINARY_DIR}/eboot.bin
-        ${CMAKE_BINARY_DIR}/param.sfo
+    DEPENDS ${CMAKE_BINARY_DIR}/eboot.bin ${CMAKE_BINARY_DIR}/param.sfo
     COMMENT "Packing VPK"
 )
 
