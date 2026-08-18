@@ -35,7 +35,7 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # VitaGL: buduje się przez `make install`, NIE cmake.
+      # VitaGL: make install, NIE cmake
       - name: Install VitaGL
         run: |
           git clone --depth 1 https://github.com/Rinnegatamante/vitaGL.git /tmp/vitaGL
@@ -51,27 +51,25 @@ jobs:
           fi
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
 
-      # Vita CMake używa oddzielnego CMakeLists_vita.cmake, nie głównego CMakeLists.txt.
-      # Główny CMakeLists.txt jest tylko dla PC (zawiera check 32-bit który przejdzie
-      # na Vicie – ARM32 – ale nie definiuje targetu `vpk`).
-      # Wywołujemy cmake bezpośrednio na vita/CMakeLists_vita.cmake.
-      - name: Configure (CMake – vita/CMakeLists_vita.cmake)
+      # CMakeLists_vita.cmake → vita/CMakeLists.txt
+      # cmake wymaga dokładnie pliku CMakeLists.txt gdy używamy -S <dir>
+      - name: Prepare vita/CMakeLists.txt
+        run: cp vita/CMakeLists_vita.cmake vita/CMakeLists.txt
+
+      - name: Configure (CMake)
         run: |
           cmake -B build-vita \
             -S vita \
             -DCMAKE_TOOLCHAIN_FILE="$VITASDK/share/vita.toolchain.cmake" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCTR_NATIVE_VERSION="${{ steps.ver.outputs.version }}" \
-            -G "Unix Makefiles"
+            -DCTR_SOURCE_DIR="${PWD}"
 
-      # Teraz target `vpk` jest zdefiniowany bezpośrednio w vita/CMakeLists_vita.cmake
       - name: Build VPK
         run: cmake --build build-vita --parallel $(nproc) --target vpk
 
       - name: Verify VPK
-        run: |
-          ls -lh build-vita/ctr_native.vpk
-          file build-vita/ctr_native.vpk
+        run: ls -lh build-vita/ctr_native.vpk
 
       - name: Upload VPK artifact
         uses: actions/upload-artifact@v4
@@ -92,7 +90,7 @@ jobs:
             ### Instalacja
             1. Prześlij `ctr_native.vpk` na Vitę przez VitaShell lub FTP.
             2. Zainstaluj VPK.
-            3. Umieść obraz dysku: `ux0:/data/ctr_native/assets/ctr-u.bin`
+            3. Obraz dysku (NTSC-U): `ux0:/data/ctr_native/assets/ctr-u.bin`
 
             **Build ID:** `${{ github.sha }}`
           files: build-vita/ctr_native.vpk
