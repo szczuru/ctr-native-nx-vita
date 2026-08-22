@@ -1,8 +1,5 @@
 name: Build – Nintendo Switch (NRO)
 
-on:
-  push:
-    branches: [ master, main ]
     paths:
       - 'platform/**'
       - 'game/**'
