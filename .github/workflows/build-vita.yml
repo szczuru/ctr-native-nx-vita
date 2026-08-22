@@ -1,18 +1,6 @@
 name: Build – PlayStation Vita (VPK)
 
 on:
-  push:
-    branches: [ master, main ]
-    paths:
-      - 'platform/**'
-      - 'game/**'
-      - 'include/**'
-      - 'vita/**'
-      - 'main.c'
-      - 'CMakeLists.txt'
-      - '.github/workflows/build-vita.yml'
-  pull_request:
-    branches: [ master, main ]
   workflow_dispatch:
     inputs:
       release_tag:
