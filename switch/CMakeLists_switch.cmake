@@ -36,6 +36,36 @@ if(NOT CTR_NATIVE_VERSION)
     set(CTR_NATIVE_VERSION "dev")
 endif()
 
+# ── SDL3 ze źródeł vendorowanych ──────────────────────────────────────────────
+# Upstream ctr-native vendoruje SDL3 w externals/SDL/.
+# Budujemy go dla Switcha z wyłączonymi backendami których brak na bare-metal.
+# Wymagane: NIE używamy SDL_THREADS (brak POSIX threads na Switch),
+# używamy SDL_VIDEO_OPENGL_ES2 przez EGL z libnx.
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON  CACHE BOOL "" FORCE)
+set(SDL_TEST   OFF CACHE BOOL "" FORCE)
+
+# Wyłączamy subsystemy niedostępne na Switch
+set(SDL_AUDIO        ON  CACHE BOOL "" FORCE)   # libnx audio
+set(SDL_VIDEO        ON  CACHE BOOL "" FORCE)
+set(SDL_RENDER       OFF CACHE BOOL "" FORCE)
+set(SDL_JOYSTICK     OFF CACHE BOOL "" FORCE)   # używamy libnx pad bezpośrednio
+set(SDL_HAPTIC       OFF CACHE BOOL "" FORCE)
+set(SDL_SENSOR       OFF CACHE BOOL "" FORCE)
+set(SDL_POWER        OFF CACHE BOOL "" FORCE)
+set(SDL_FILESYSTEM   OFF CACHE BOOL "" FORCE)
+set(SDL_THREADS      OFF CACHE BOOL "" FORCE)   # KLUCZOWE: brak POSIX threads w libnx
+set(SDL_TIMERS       ON  CACHE BOOL "" FORCE)
+set(SDL_LOADSO       OFF CACHE BOOL "" FORCE)
+set(SDL_LOCALE       OFF CACHE BOOL "" FORCE)
+set(SDL_MISC         OFF CACHE BOOL "" FORCE)
+set(SDL_OPENGL       OFF CACHE BOOL "" FORCE)
+set(SDL_OPENGLES     ON  CACHE BOOL "" FORCE)   # GLES2 przez EGL
+
+add_subdirectory(${CTR_SOURCE_DIR}/externals/SDL
+                 ${CMAKE_BINARY_DIR}/externals/SDL
+                 EXCLUDE_FROM_ALL)
+
 # ── Include paths ──────────────────────────────────────────────────────────────
 include_directories(
     ${CTR_SOURCE_DIR}
@@ -45,6 +75,8 @@ include_directories(
     ${CMAKE_SOURCE_DIR}
     ${DEVKITPRO}/libnx/include
     ${DEVKITPRO}/portlibs/switch/include
+    # SDL3 nagłówki z vendored source
+    ${CTR_SOURCE_DIR}/externals/SDL/include
 )
 
 # ── Źródła ────────────────────────────────────────────────────────────────────
@@ -55,7 +87,7 @@ add_executable(ctr_native_switch.elf
     ${CTR_SOURCE_DIR}/platform/native_libpad_switch.c
 )
 
-# ── Flagi kompilacji PER TARGET ───────────────────────────────────────────────
+# ── Flagi kompilacji ───────────────────────────────────────────────────────────
 target_compile_options(ctr_native_switch.elf PRIVATE
     -march=armv8-a+crc+crypto
     -mtune=cortex-a57
@@ -90,6 +122,7 @@ target_link_options(ctr_native_switch.elf PRIVATE
 )
 
 target_link_libraries(ctr_native_switch.elf
+    SDL3-static
     ${DEVKITPRO}/libnx/lib/libnx.a
     m
     EGL
@@ -110,8 +143,6 @@ add_custom_command(
     COMMENT "Generating NACP"
 )
 
-# $<PATH:EXISTS,...> wymaga CMake ≥3.24 – devkitPro ma starszy CMake
-# Używamy if(EXISTS ...) ewaluowanego w czasie configure
 if(EXISTS ${ICONFILE})
     set(ICON_ARG --icon=${ICONFILE})
 else()
