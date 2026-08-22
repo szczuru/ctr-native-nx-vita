@@ -1,7 +1,4 @@
-# vita/CMakeLists.txt (kopiowany z CMakeLists_vita.cmake przez workflow)
-#
-# Identyczny wzorzec jak Switch: kompilujemy upstream main.c
-# + Vita-specyficzne backendy platformy.
+# vita/CMakeLists.txt  (kopiowany z CMakeLists_vita.cmake przez workflow)
 #
 # Wywoływany z:
 #   cmake -B build-vita -S vita
@@ -23,20 +20,20 @@ if(NOT DEFINED ENV{VITASDK})
 endif()
 set(VITASDK $ENV{VITASDK})
 
-# ── Flagi ─────────────────────────────────────────────────────────────────────
-add_compile_options(
-    -mcpu=cortex-a9
-    -mfpu=neon
-    -O2
-    -ffunction-sections
-    -fdata-sections
-    -Wall
-    -Wno-unused-function
-    -Wno-strict-aliasing
-    -DPLATFORM_VITA
-    -DCTR_NATIVE
-    -DCTR_INTERNAL
+# ── Git hash ──────────────────────────────────────────────────────────────────
+execute_process(
+    COMMAND git rev-parse --short=12 HEAD
+    WORKING_DIRECTORY ${CTR_SOURCE_DIR}
+    OUTPUT_VARIABLE CTR_NATIVE_GIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
 )
+if(NOT CTR_NATIVE_GIT_HASH)
+    set(CTR_NATIVE_GIT_HASH "unknown")
+endif()
+if(NOT CTR_NATIVE_VERSION)
+    set(CTR_NATIVE_VERSION "dev")
+endif()
 
 # ── Include paths ──────────────────────────────────────────────────────────────
 include_directories(
@@ -51,17 +48,37 @@ include_directories(
 
 # ── Źródła ────────────────────────────────────────────────────────────────────
 add_executable(ctr_native_vita.elf
-    # Upstream entry point (unity include manifest)
     ${CTR_SOURCE_DIR}/main.c
-
-    # Vita-specyficzne backendy platformy
     ${CTR_SOURCE_DIR}/platform/native_platform_vita.c
     ${CTR_SOURCE_DIR}/platform/native_renderer_vita.c
     ${CTR_SOURCE_DIR}/platform/native_libpad_vita.c
 )
 
+# ── Flagi kompilacji PER TARGET ───────────────────────────────────────────────
+# Używamy target_compile_options (nie add_compile_options) żeby mieć pewność
+# że flagi trafiają do WSZYSTKICH jednostek translacji tego targetu, w tym main.c.
+#
+# -fno-short-enums: kluczowe – zapewnia sizeof(enum)==4 zgodnie z PSX ABI.
+#   Bez tego CTR_STATIC_ASSERT w include/ovr_230.h failuje bo arm-vita-eabi-gcc
+#   domyślnie używa krótkich enumów (sizeof(enum) może być 1 lub 2).
+target_compile_options(ctr_native_vita.elf PRIVATE
+    -mcpu=cortex-a9
+    -mfpu=neon
+    -fno-short-enums
+    -O2
+    -ffunction-sections
+    -fdata-sections
+    -Wall
+    -Wno-unused-function
+    -Wno-strict-aliasing
+)
+
 target_compile_definitions(ctr_native_vita.elf PRIVATE
+    PLATFORM_VITA
+    CTR_NATIVE
+    CTR_INTERNAL
     CTR_NATIVE_VERSION=\"${CTR_NATIVE_VERSION}\"
+    CTR_NATIVE_BUILD_ID=\"${CTR_NATIVE_GIT_HASH}\"
 )
 
 # ── Biblioteki ─────────────────────────────────────────────────────────────────
