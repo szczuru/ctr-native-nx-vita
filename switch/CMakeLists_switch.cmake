@@ -1,9 +1,4 @@
-# switch/CMakeLists.txt (kopiowany z CMakeLists_switch.cmake przez workflow)
-#
-# KLUCZOWA ZMIANA W STOSUNKU DO POPRZEDNICH WERSJI:
-# Kompilujemy upstream main.c (bez modyfikacji) jako główną jednostkę.
-# main.c sam wciąga przez #include całą platformę i grę (unity build).
-# Dodajemy tylko switch-specyficzne backendy platformy jako dodatkowe źródła.
+# switch/CMakeLists.txt  (kopiowany z CMakeLists_switch.cmake przez workflow)
 #
 # Wywoływany z:
 #   cmake -B build-switch -S switch
@@ -26,24 +21,20 @@ endif()
 set(DEVKITPRO $ENV{DEVKITPRO})
 set(DEVKITA64 ${DEVKITPRO}/devkitA64)
 
-# ── Flagi kompilacji ───────────────────────────────────────────────────────────
-add_compile_options(
-    -march=armv8-a+crc+crypto
-    -mtune=cortex-a57
-    -mtp=soft
-    -fPIE
-    -O2
-    -ffunction-sections
-    -fdata-sections
-    -Wall
-    -Wno-unused-function
-    -Wno-strict-aliasing
-    -DPLATFORM_SWITCH
-    -D__SWITCH__
-    -DCTR_NATIVE
-    -DCTR_INTERNAL
-    -DCTR_NATIVE_SKIP_BITWIDTH_CHECK=1
+# ── Git hash ──────────────────────────────────────────────────────────────────
+execute_process(
+    COMMAND git rev-parse --short=12 HEAD
+    WORKING_DIRECTORY ${CTR_SOURCE_DIR}
+    OUTPUT_VARIABLE CTR_NATIVE_GIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
 )
+if(NOT CTR_NATIVE_GIT_HASH)
+    set(CTR_NATIVE_GIT_HASH "unknown")
+endif()
+if(NOT CTR_NATIVE_VERSION)
+    set(CTR_NATIVE_VERSION "dev")
+endif()
 
 # ── Include paths ──────────────────────────────────────────────────────────────
 include_directories(
@@ -57,20 +48,35 @@ include_directories(
 )
 
 # ── Źródła ────────────────────────────────────────────────────────────────────
-# Upstream main.c wciąga przez #include całą platformę i grę.
-# Dodajemy tylko Switch-specyficzne backendy których upstream nie ma.
 add_executable(ctr_native_switch.elf
-    # Upstream entry point (unity include manifest – wciąga platform/ i game/)
     ${CTR_SOURCE_DIR}/main.c
-
-    # Switch-specyficzne backendy platformy (nie wciągane przez upstream main.c)
     ${CTR_SOURCE_DIR}/platform/native_platform_switch.c
     ${CTR_SOURCE_DIR}/platform/native_renderer_switch.c
     ${CTR_SOURCE_DIR}/platform/native_libpad_switch.c
 )
 
+# ── Flagi kompilacji PER TARGET ───────────────────────────────────────────────
+target_compile_options(ctr_native_switch.elf PRIVATE
+    -march=armv8-a+crc+crypto
+    -mtune=cortex-a57
+    -mtp=soft
+    -fPIE
+    -O2
+    -ffunction-sections
+    -fdata-sections
+    -Wall
+    -Wno-unused-function
+    -Wno-strict-aliasing
+)
+
 target_compile_definitions(ctr_native_switch.elf PRIVATE
+    PLATFORM_SWITCH
+    __SWITCH__
+    CTR_NATIVE
+    CTR_INTERNAL
+    CTR_NATIVE_SKIP_BITWIDTH_CHECK=1
     CTR_NATIVE_VERSION=\"${CTR_NATIVE_VERSION}\"
+    CTR_NATIVE_BUILD_ID=\"${CTR_NATIVE_GIT_HASH}\"
 )
 
 # ── Linker ────────────────────────────────────────────────────────────────────
@@ -104,13 +110,22 @@ add_custom_command(
     COMMENT "Generating NACP"
 )
 
+# $<PATH:EXISTS,...> wymaga CMake ≥3.24 – devkitPro ma starszy CMake
+# Używamy if(EXISTS ...) ewaluowanego w czasie configure
+if(EXISTS ${ICONFILE})
+    set(ICON_ARG --icon=${ICONFILE})
+else()
+    set(ICON_ARG "")
+    message(STATUS "switch/icon.jpg not found – NRO will use default icon")
+endif()
+
 add_custom_command(
     OUTPUT ${NRO_OUTPUT}
     COMMAND ${DEVKITPRO}/tools/bin/elf2nro
             $<TARGET_FILE:ctr_native_switch.elf>
             ${NRO_OUTPUT}
             --nacp=${NACPFILE}
-            $<$<BOOL:$<PATH:EXISTS,${ICONFILE}>>:--icon=${ICONFILE}>
+            ${ICON_ARG}
     DEPENDS ctr_native_switch.elf ${NACPFILE}
     COMMENT "Generating NRO"
 )
