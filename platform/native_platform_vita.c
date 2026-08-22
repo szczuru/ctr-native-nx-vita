@@ -204,8 +204,8 @@ void Platform_Vita_Init(void)
 void Platform_Vita_Shutdown(void)
 {
     VitaConfig_Save();
-    /* vglEnd() nie istnieje w VitaGL – prawidłowa funkcja zamknięcia to vglStopRendering() */
-    vglStopRendering();
+    /* Zamknięcie VitaGL */
+    vglEnd();
 }
 
 void Platform_Vita_FrameTick(void)
